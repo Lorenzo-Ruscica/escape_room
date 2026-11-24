@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>SOGLIA IV</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Scena 3D principale -->
+  <canvas id="scene-canvas" aria-label="Visuale 3D della stanza"></canvas>
+
+  <!-- Vignettatura e grana atmosferica non interattiva -->
+  <div class="atmosphere-vignette" aria-hidden="true"></div>
+  <div id="room-fade" class="room-fade is-visible" aria-hidden="true"></div>
+
+  <!-- Cursore minimale reattivo -->
+  <div id="reticle" class="reticle" aria-hidden="true">
+    <span class="reticle-dot"></span>
+    <span class="reticle-ring"></span>
+  </div>
+
+  <!-- Titolo discreto iniziale che svanisce al primo clic -->
+  <div id="intro-watermark" class="intro-watermark" aria-hidden="true">
+    <span class="watermark-code">SETTORE SOTTERRANEO // 04</span>
+    <span class="watermark-title">SOGLIA IV</span>
+    <span class="watermark-sub">Clicca nella stanza per ispezionare</span>
+  </div>
+
+  <!-- Indicatore stanza ultra-discreto in alto a sinistra -->
+  <div id="room-tag" class="room-tag" aria-live="polite">I · ANTICAMERA SOMMERSA</div>
+
+  <!-- Controlli minimali in alto a destra: luminosità + audio -->
+  <div class="top-controls">
+    <div class="brightness-control" title="Regola luminosità">
+      <label for="brightness-slider" class="brightness-icon" aria-label="Luminosità scena">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77" />
+        </svg>
+      </label>
+      <input id="brightness-slider" class="brightness-slider" type="range" min="50" max="220" value="100" step="2" />
+    </div>
+
+    <button id="audio-toggle" class="icon-control" type="button" aria-label="Attiva o disattiva audio ambientale" title="Audio">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        <path id="audio-waves" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Pulsante ritorno da visuale ravvicinata -->
+  <button id="closeup-back" class="closeup-back" type="button" hidden>
+    <span aria-hidden="true">←</span> Allontanati
+  </button>
+
+  <!-- Sussurro / micro-feedback contestuale in basso -->
+  <div class="hud-bottom">
+    <p id="whisper-text" class="whisper-text" role="status" aria-live="polite"></p>
+    <p id="hover-label" class="hover-label" aria-hidden="true"></p>
+  </div>
+
+  <!-- Inventario minimale ultra-compatto -->
+  <aside id="inventory-bar" class="inventory-bar is-empty" aria-label="Inventario oggetti raccolti">
+    <div id="inventory-slots" class="inventory-slots"></div>
+  </aside>
+
+  <!-- Dialogo nativo per ispezione documenti e targhe incise -->
+  <dialog id="doc-dialog" class="doc-dialog" closedby="any" aria-labelledby="doc-title">
+    <article class="doc-sheet">
+      <header class="doc-header">
+        <span id="doc-meta" class="doc-meta">REPERTO</span>
+        <h1 id="doc-title" class="doc-title">Documento</h1>
+      </header>
+      <div id="doc-body" class="doc-body"></div>
+      <footer class="doc-footer">
+        <button id="doc-close" class="doc-close-btn" type="button" autofocus>Riponi</button>
+      </footer>
+    </article>
+  </dialog>
+
+  <!-- Epilogo finale -->
+  <dialog id="ending-dialog" class="doc-dialog ending-dialog" closedby="closerequest" aria-labelledby="ending-title">
+    <article class="doc-sheet ending-sheet">
+      <span class="doc-meta">SOGLIA 0 // SUPERFICIE</span>
+      <h1 id="ending-title" class="doc-title">VARCO APERTO</h1>
+      <p class="ending-copy">
+        I pistoni idraulici cedono dopo decenni di silenzio. L’aria fredda dell’esterno invade la camera di controllo, dissolvendo l’odore di ferro bagnato e olio bruciato.
+      </p>
+      <p id="ending-stats" class="ending-stats"></p>
+      <footer class="doc-footer">
+        <button id="restart-btn" class="doc-close-btn" type="button" autofocus>Ricomincia dall’Anticamera</button>
+      </footer>
+    </article>
+  </dialog>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

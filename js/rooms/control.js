@@ -1,0 +1,659 @@
+import * as THREE from 'three';
+import {
+  buildRoomShell,
+  createCageLamp,
+  createHandwheel,
+  makeBrassMaterial,
+  makeRustMaterial,
+  tagInteractive
+} from './geometry.js';
+import {
+  createCRTTexture,
+  createSootGlassTexture,
+  createSymbolDiskTexture
+} from '../textures.js';
+import {
+  ROTOR_SYMBOLS,
+  TARGET_ROTORS,
+  consumeInventoryItem,
+  state
+} from '../state.js';
+import { sound } from '../audio.js';
+import { openDocument, openEndingScreen, renderInventory, whisper } from '../ui.js';
+
+export function buildControlRoom(actions) {
+  const { group, dust } = buildRoomShell({ width: 7.6, height: 4.2, depth: 7.2, wallTint: 0x636c75 });
+
+  const hemi = new THREE.HemisphereLight(0x3f5061, 0x12151a, 0.44);
+  group.add(hemi);
+
+  const overheadLamp = createCageLamp({ color: 0xc98849, intensity: 5.6, distance: 10.5 });
+  overheadLamp.root.position.set(0, 3.66, -0.35);
+  group.add(overheadLamp.root);
+
+  // --- 1. GRANDE CHIUSA CIRCOLARE DI SUPERFICIE ("SOGLIA 0") SUL FONDO ---
+  const vaultAnchor = new THREE.Group();
+  vaultAnchor.position.set(0, 1.95, -3.55);
+
+  // Cornice circolare fissa in acciaio
+  const ringCollar = new THREE.Mesh(
+    new THREE.TorusGeometry(1.36, 0.14, 16, 48),
+    makeRustMaterial(0x525a63, 0.62, 0.52)
+  );
+  vaultAnchor.add(ringCollar);
+
+  // Varco luminoso verso l'esterno (visibile quando il portellone scorre di lato)
+  const portalMat = new THREE.MeshStandardMaterial({
+    color: 0x080b0e,
+    emissive: new THREE.Color(0x000000),
+    emissiveIntensity: 0,
+    roughness: 0.2
+  });
+  const portalDisk = new THREE.Mesh(new THREE.CircleGeometry(1.28, 44), portalMat);
+  portalDisk.position.z = -0.01;
+  vaultAnchor.add(portalDisk);
+
+  // Luce diurna fredda che irrompe nella stanza all'apertura
+  const daylightSpot = new THREE.SpotLight(0xd8ecff, 0, 14, Math.PI / 3.4, 0.55, 1.2);
+  daylightSpot.position.set(0, 0.1, -0.2);
+  daylightSpot.target.position.set(0, -0.8, 3.2);
+  vaultAnchor.add(daylightSpot);
+  vaultAnchor.add(daylightSpot.target);
+
+  tagInteractive(portalDisk, {
+    id: 'escape_portal',
+    kind: 'door',
+    label: 'Varco di Superficie · Esci',
+    isEnabled: () => !state.closeupId && state.vaultOpen,
+    onClick: () => {
+      state.escaped = true;
+      sound.playDoorTransition();
+      openEndingScreen();
+    }
+  });
+
+  // Portellone mobile corazzato (scorre a sinistra quando vaultOpen === true)
+  const vaultDoor = new THREE.Group();
+  vaultDoor.position.z = 0.12;
+  const heavySteel = makeRustMaterial(0x68727d, 0.52, 0.55);
+
+  const doorPlate = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.16, 40), heavySteel);
+  doorPlate.rotation.x = Math.PI / 2;
+  doorPlate.castShadow = true;
+  vaultDoor.add(doorPlate);
+
+  // 6 pistoni/chiavistelli radiali
+  const lugs = [];
+  for (let i = 0; i < 6; i++) {
+    const ang = (i * Math.PI) / 3;
+    const lugPivot = new THREE.Group();
+    lugPivot.rotation.z = ang;
+    const lug = new THREE.Mesh(
+      new THREE.BoxGeometry(0.13, 0.42, 0.08),
+      makeBrassMaterial(0x7c6542)
+    );
+    lug.position.set(0, 1.08, 0.1);
+    lugPivot.add(lug);
+    lugs.push(lug);
+    vaultDoor.add(lugPivot);
+  }
+
+  const centerWheel = createHandwheel(0.38, 0.036, makeRustMaterial(0x6b3a26, 0.58, 0.72));
+  centerWheel.position.z = 0.16;
+  vaultDoor.add(centerWheel);
+
+  tagInteractive(vaultDoor, {
+    id: 'vault_door_inspect',
+    label: 'Chiusa blindata Soglia 0',
+    isEnabled: () => !state.closeupId && !state.vaultOpen,
+    onClick: () => {
+      whisper('La Chiusa di Superficie è serrata da sei pistoni idraulici. Si governa dalla console centrale.');
+    }
+  });
+
+  vaultAnchor.add(vaultDoor);
+  group.add(vaultAnchor);
+
+  // --- 2. PARETE SINISTRA: TERMINALE CRT + SPIA OTTICA ANNERITA (γ = 9) ---
+  const leftStation = new THREE.Group();
+  leftStation.position.set(-3.68, 1.62, -1.75);
+  leftStation.rotation.y = Math.PI / 2;
+
+  // Terminale CRT ad ambra (a sinistra nella stazione -> local x = -0.62)
+  const crtGroup = new THREE.Group();
+  crtGroup.position.set(-0.62, 0.05, 0.14);
+
+  const crtBox = new THREE.Mesh(
+    new THREE.BoxGeometry(0.76, 0.62, 0.28),
+    makeRustMaterial(0x2a2d30, 0.72, 0.68)
+  );
+  crtGroup.add(crtBox);
+
+  const crtScreenMat = new THREE.MeshStandardMaterial({
+    map: createCRTTexture(),
+    emissive: new THREE.Color(0xd9822b),
+    emissiveMap: createCRTTexture(),
+    emissiveIntensity: 0.92,
+    roughness: 0.25
+  });
+  const crtScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.48), crtScreenMat);
+  crtScreen.position.z = 0.145;
+  crtGroup.add(crtScreen);
+
+  const crtGlow = new THREE.PointLight(0xe58d35, 1.9, 3.2, 2);
+  crtGlow.position.set(0, 0, 0.45);
+  crtGroup.add(crtGlow);
+
+  tagInteractive(crtGroup, {
+    id: 'crt_terminal',
+    label: 'Terminale diagnostico',
+    isEnabled: () => !state.closeupId,
+    onClick: () => {
+      openDocument({
+        meta: 'TERMINALE FOSFORI // ARCHIVIO SICUREZZA',
+        title: ' Schema Cassetta Emergenza [ α · β · γ ]',
+        html: `
+          <p>Il monitor elenca l’origine delle tre cifre necessarie ad aprire la Cassetta d’Emergenza nell’Anticamera:</p>
+          <div class="code-callout">
+            • α — Targa d’emergenza sopra il muro dell’Anticamera<br>
+            • β — Pressione di regime sul Manometro in Sala Valvole<br>
+            • γ — Spia ottica nel riquadro qui a fianco
+          </div>
+          <p>Ispeziona il riquadro di vetro accanto al terminale per leggere il parametro <strong>γ</strong>.</p>
+        `
+      });
+    }
+  });
+  leftStation.add(crtGroup);
+
+  // Spia ottica coperta di fuliggine (a destra del CRT -> local x = +0.52)
+  const sootGroup = new THREE.Group();
+  sootGroup.position.set(0.52, -0.02, 0.08);
+
+  const sootFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(0.44, 0.44, 0.1),
+    makeRustMaterial(0x362b24, 0.72, 0.68)
+  );
+  sootGroup.add(sootFrame);
+
+  const dirtyGlassTex = createSootGlassTexture(false);
+  const cleanGlassTex = createSootGlassTexture(true);
+
+  const sootGlassMat = new THREE.MeshStandardMaterial({
+    map: dirtyGlassTex,
+    emissive: new THREE.Color(0x000000),
+    emissiveMap: cleanGlassTex,
+    emissiveIntensity: 0,
+    roughness: 0.35,
+    metalness: 0.2
+  });
+  const sootGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), sootGlassMat);
+  sootGlass.position.z = 0.054;
+  sootGroup.add(sootGlass);
+
+  const sootFill = new THREE.PointLight(0xd99248, 0.9, 1.8, 2);
+  sootFill.position.set(0, 0.1, 0.48);
+  sootGroup.add(sootFill);
+
+  tagInteractive(sootGlass, {
+    id: 'soot_wipe',
+    get label() {
+      return state.glassWiped ? 'Spia ottica γ : 9' : 'Pulire vetro annerito';
+    },
+    isEnabled: () => state.closeupId === 'soot',
+    onClick: () => {
+      if (!state.glassWiped) {
+        state.glassWiped = true;
+        sound.playScrape();
+        whisper('Strofini via la patina di fuliggine e grasso: dietro il vetro splende nitido γ = 9.');
+      } else {
+        whisper('La spia ottica mostra stabilmente il valore γ = 9.');
+      }
+    }
+  });
+
+  const sootZoomProxy = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.5, 0.18),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+  );
+  sootZoomProxy.userData.noHighlight = true;
+  tagInteractive(sootZoomProxy, {
+    id: 'soot_zoom',
+    label: 'Vetrino ottico annerito',
+    isEnabled: () => !state.closeupId,
+    onClick: () => {
+      actions.enterCloseup('soot');
+    }
+  });
+  sootGroup.add(sootZoomProxy);
+  leftStation.add(sootGroup);
+  group.add(leftStation);
+
+  // --- 3. CONSOLE DI COMANDO PRINCIPALE (AL CENTRO) ---
+  const consoleGroup = new THREE.Group();
+  consoleGroup.position.set(0, 0, -0.95);
+  const consoleSteel = makeRustMaterial(0x565f69, 0.58, 0.48);
+
+  const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.92, 0.68), consoleSteel);
+  pedestal.position.y = 0.46;
+  pedestal.castShadow = true;
+  pedestal.receiveShadow = true;
+  consoleGroup.add(pedestal);
+
+  // Piano inclinato rivolto verso il giocatore
+  const slantRoot = new THREE.Group();
+  slantRoot.position.set(0, 0.98, 0);
+  slantRoot.rotation.x = 0.52;
+
+  const deskPlate = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.1, 0.78), consoleSteel);
+  deskPlate.castShadow = true;
+  slantRoot.add(deskPlate);
+
+  // Luce calda focalizzata sul piano della console
+  const consoleLamp = new THREE.PointLight(0xeba65c, 3.4, 3.8, 1.6);
+  consoleLamp.position.set(0.12, 0.85, 0.25);
+  slantRoot.add(consoleLamp);
+
+  // 3A. Diario del Guardiano (lato sinistro della console)
+  const journalGroup = new THREE.Group();
+  journalGroup.position.set(-0.56, 0.068, 0.02);
+  journalGroup.rotation.y = 0.18;
+
+  const jCover = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.025, 0.38),
+    new THREE.MeshStandardMaterial({ color: 0x291c16, roughness: 0.85 })
+  );
+  journalGroup.add(jCover);
+  const jPaper = new THREE.Mesh(
+    new THREE.BoxGeometry(0.27, 0.032, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0xc9bba1, roughness: 0.88 })
+  );
+  jPaper.position.y = 0.006;
+  journalGroup.add(jPaper);
+
+  tagInteractive(journalGroup, {
+    id: 'keeper_journal',
+    label: 'Diario del Guardiano',
+    isEnabled: () => !state.closeupId || state.closeupId === 'console',
+    onClick: () => {
+      openDocument({
+        meta: 'TACCUINO DEL GUARDIANO // SOGLIA IV',
+        title: 'Protocollo di Allineamento — Frammento III',
+        html: `
+          <p>«Se qualcuno scenderà fin qui dopo di me, dovrà ricomporre i tre vincoli prima di azionare la leva della Chiusa:»</p>
+          <div class="code-callout">
+            • Il Rombo ( ◇ ) precede sempre il Triangolo ( △ ), occupando una posizione più a sinistra.
+          </div>
+          <p><em>Nota a margine:</em> gli altri due frammenti si trovano nel <strong>Registro della Sala Valvole</strong> e all’interno della <strong>Cassetta d’Emergenza</strong> nell’Anticamera. La Chiave Maestra apre lo sportello dei rotori.</p>
+        `
+      });
+    }
+  });
+  slantRoot.add(journalGroup);
+
+  // 3B. I 3 Rotori Simbolici al centro della console
+  const rotorMeshes = [];
+  const rotorKicks = [0, 0, 0];
+
+  for (let i = 0; i < 3; i++) {
+    const rx = -0.17 + i * 0.22;
+    const rHolder = new THREE.Group();
+    rHolder.position.set(rx, 0.062, -0.02);
+
+    const ring = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.095, 0.098, 0.024, 24),
+      makeBrassMaterial(0x7c5f38)
+    );
+    rHolder.add(ring);
+
+    const symTex = createSymbolDiskTexture(ROTOR_SYMBOLS[state.rotors[i]]);
+    const bodyDisk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.084, 0.084, 0.03, 24),
+      makeRustMaterial(0x1f1913, 0.5, 0.6)
+    );
+    const faceMat = new THREE.MeshStandardMaterial({
+      map: symTex,
+      emissive: new THREE.Color(0xc97b2c),
+      emissiveMap: symTex,
+      emissiveIntensity: 0.55,
+      roughness: 0.32,
+      metalness: 0.45
+    });
+    const faceCap = new THREE.Mesh(new THREE.CircleGeometry(0.082, 28), faceMat);
+    faceCap.rotation.x = -Math.PI / 2;
+    faceCap.position.y = 0.016;
+    bodyDisk.add(faceCap);
+
+    rHolder.add(bodyDisk);
+
+    const posLabels = ['Sinistro (1°)', 'Centrale (2°)', 'Destro (3°)'];
+    tagInteractive(rHolder, {
+      id: `rotor_${i}`,
+      get label() {
+        return `Rotore ${posLabels[i]} · ${ROTOR_SYMBOLS[state.rotors[i]]}`;
+      },
+      isEnabled: () => state.closeupId === 'console' && state.consoleUnlocked && !state.vaultOpen,
+      onClick: () => {
+        state.rotors[i] = (state.rotors[i] + 1) % ROTOR_SYMBOLS.length;
+        const newTex = createSymbolDiskTexture(ROTOR_SYMBOLS[state.rotors[i]]);
+        faceCap.material.map = newTex;
+        faceCap.material.emissiveMap = newTex;
+        faceCap.material.needsUpdate = true;
+        rotorKicks[i] = 0.65;
+        sound.playDialTick(0.82 + i * 0.12);
+      }
+    });
+
+    rotorMeshes.push({ group: bodyDisk, faceCap });
+
+    slantRoot.add(rHolder);
+  }
+
+  // Sportello corazzato scorrevole sopra i 3 rotori (chiuso finché consoleUnlocked === false)
+  const shutterMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.042, 0.28),
+    makeRustMaterial(0x785c4e, 0.60, 0.48)
+  );
+  shutterMesh.position.set(0.05, 0.078, -0.02);
+
+  tagInteractive(shutterMesh, {
+    id: 'rotor_shutter',
+    label: 'Sportello protettivo bloccato',
+    isEnabled: () => state.closeupId === 'console' && !state.consoleUnlocked,
+    onClick: () => {
+      sound.playDialTick(0.6);
+      whisper('Uno sportello d’acciaio copre i tre rotori. Inserisci la Chiave Maestra nella serratura a destra.');
+    }
+  });
+  slantRoot.add(shutterMesh);
+
+  // 3C. Serratura d'Ottone + Chiave inserita (lato destro in alto)
+  const lockGroup = new THREE.Group();
+  lockGroup.position.set(0.56, 0.065, -0.14);
+
+  const lockCylinder = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.052, 0.058, 0.032, 18),
+    makeBrassMaterial(0xa88246)
+  );
+  lockGroup.add(lockCylinder);
+
+  const keySlotLine = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.036, 0.048),
+    new THREE.MeshBasicMaterial({ color: 0x0b0907 })
+  );
+  keySlotLine.userData.noHighlight = true;
+  lockGroup.add(keySlotLine);
+
+  const insertedKey = new THREE.Group();
+  insertedKey.position.y = 0.05;
+  insertedKey.visible = false;
+  const kBrass = makeBrassMaterial(0xd4a453);
+  const kStem = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.09, 8), kBrass);
+  insertedKey.add(kStem);
+  const kBow = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.009, 8, 18), kBrass);
+  kBow.position.y = 0.065;
+  insertedKey.add(kBow);
+  lockGroup.add(insertedKey);
+
+  // Hitbox comoda per la serratura
+  const lockHitbox = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.14, 0.18),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+  );
+  lockHitbox.userData.noHighlight = true;
+  lockGroup.add(lockHitbox);
+
+  tagInteractive(lockGroup, {
+    id: 'console_keyhole',
+    get label() {
+      return state.consoleUnlocked ? 'Chiave Maestra inserita' : 'Serratura d’ottone';
+    },
+    isEnabled: () => state.closeupId === 'console' && !state.consoleUnlocked,
+    onClick: () => {
+      if (state.armedItem === 'master_key') {
+        consumeInventoryItem('master_key');
+        state.consoleUnlocked = true;
+        insertedKey.visible = true;
+        sound.playMetalSnap();
+        renderInventory();
+        whisper('La Chiave Maestra scatta nel cilindro: lo sportello blindato si ritrae svelando i tre rotori.');
+      } else {
+        sound.playDialTick(0.62);
+        whisper('Una serratura di sicurezza in ottone massiccio. Richiede la Chiave Maestra.');
+      }
+    }
+  });
+  slantRoot.add(lockGroup);
+
+  // 3D. Leva di Sblocco Chiusa (lato destro in basso)
+  const leverBase = new THREE.Group();
+  leverBase.position.set(0.56, 0.062, 0.14);
+
+  const lHousing = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.04, 0.22),
+    makeRustMaterial(0x23262a, 0.7, 0.75)
+  );
+  leverBase.add(lHousing);
+
+  const leverPivot = new THREE.Group();
+  leverPivot.rotation.x = -0.52;
+  const lRod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.18, 10), makeBrassMaterial(0x9e7d47));
+  lRod.position.y = 0.09;
+  leverPivot.add(lRod);
+  const lGrip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.026, 0.026, 0.11, 12),
+    new THREE.MeshStandardMaterial({ color: 0x6e241b, roughness: 0.45, metalness: 0.3 })
+  );
+  lGrip.rotation.z = Math.PI / 2;
+  lGrip.position.y = 0.18;
+  leverPivot.add(lGrip);
+  leverBase.add(leverPivot);
+
+  let leverBounce = 0;
+
+  tagInteractive(leverBase, {
+    id: 'vault_release_lever',
+    get label() {
+      return state.vaultOpen ? 'Chiusa sbloccata' : 'Leva di apertura Chiusa';
+    },
+    isEnabled: () => state.closeupId === 'console' && !state.vaultOpen,
+    onClick: () => {
+      if (!state.consoleUnlocked) {
+        sound.playDialTick(0.55);
+        whisper('La leva è bloccata meccanicamente finché la serratura sopra resta chiusa.');
+        return;
+      }
+
+      const isSolved =
+        state.rotors[0] === TARGET_ROTORS[0] &&
+        state.rotors[1] === TARGET_ROTORS[1] &&
+        state.rotors[2] === TARGET_ROTORS[2];
+
+      if (!isSolved) {
+        leverBounce = 0.48;
+        sound.playDialTick(0.48);
+        const cur = state.rotors.map((idx) => ROTOR_SYMBOLS[idx]).join(' · ');
+        whisper(`Sequenza [ ${cur} ] respinta. Rileggi i tre frammenti del protocollo.`);
+        return;
+      }
+
+      state.vaultOpen = true;
+      sound.playVaultOpen();
+      whisper('Sequenza [ ◇ · △ · ◯ ] verificata! I pistoni idraulici aprono la Soglia 0.');
+      window.setTimeout(() => {
+        if (state.closeupId === 'console') {
+          actions.leaveCloseup();
+        }
+      }, 480);
+    }
+  });
+  slantRoot.add(leverBase);
+
+  consoleGroup.add(slantRoot);
+
+  // Proxy zoom sulla console dalla visuale stanza
+  const consoleZoomProxy = new THREE.Mesh(
+    new THREE.BoxGeometry(1.68, 1.25, 0.92),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+  );
+  consoleZoomProxy.position.set(0, 0.72, 0);
+  consoleZoomProxy.userData.noHighlight = true;
+  tagInteractive(consoleZoomProxy, {
+    id: 'console_zoom',
+    label: 'Console di Comando Principale',
+    isEnabled: () => !state.closeupId,
+    onClick: () => {
+      actions.enterCloseup('console');
+    }
+  });
+  consoleGroup.add(consoleZoomProxy);
+  group.add(consoleGroup);
+
+  // --- 4. PORTA STAGNA DI RITORNO -> ANTICAMERA (PARETE DESTRA) ---
+  const exitBulkhead = new THREE.Group();
+  exitBulkhead.position.set(3.68, 0, -1.85);
+  exitBulkhead.rotation.y = -Math.PI / 2;
+
+  const ebFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(1.56, 2.68, 0.14),
+    makeRustMaterial(0x4d535c, 0.66, 0.48)
+  );
+  ebFrame.position.y = 1.34;
+  exitBulkhead.add(ebFrame);
+
+  const ebDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(1.28, 2.44, 0.1),
+    makeRustMaterial(0x6b7480, 0.54, 0.52)
+  );
+  ebDoor.position.set(0, 1.26, 0.05);
+  exitBulkhead.add(ebDoor);
+
+  const ebLight = new THREE.Mesh(
+    new THREE.SphereGeometry(0.065, 12, 10),
+    new THREE.MeshStandardMaterial({
+      color: 0x88f29d,
+      emissive: new THREE.Color(0x3bd463),
+      emissiveIntensity: 1.8
+    })
+  );
+  ebLight.position.set(0, 2.58, 0.1);
+  ebLight.userData.noHighlight = true;
+  exitBulkhead.add(ebLight);
+
+  tagInteractive(exitBulkhead, {
+    id: 'back_from_control',
+    kind: 'door',
+    label: 'Anticamera Sommersa',
+    isEnabled: () => !state.closeupId,
+    onClick: () => {
+      actions.goToRoom('vestibule');
+    }
+  });
+  group.add(exitBulkhead);
+
+  function syncFromState() {
+    insertedKey.visible = state.consoleUnlocked;
+
+    const desiredGlass = state.glassWiped ? cleanGlassTex : dirtyGlassTex;
+    if (sootGlass.material.map !== desiredGlass) {
+      sootGlass.material.map = desiredGlass;
+      if (state.glassWiped) {
+        sootGlass.userData.baseEmissive.setHex(0xd9842b);
+        sootGlass.userData.baseEmissiveIntensity = 1.1;
+      } else {
+        sootGlass.userData.baseEmissive.setHex(0x000000);
+        sootGlass.userData.baseEmissiveIntensity = 0;
+      }
+      sootGlass.material.emissive.copy(sootGlass.userData.baseEmissive);
+      sootGlass.material.emissiveIntensity = sootGlass.userData.baseEmissiveIntensity;
+      sootGlass.material.needsUpdate = true;
+    }
+
+    for (let i = 0; i < 3; i++) {
+      const targetSymTex = createSymbolDiskTexture(ROTOR_SYMBOLS[state.rotors[i]]);
+      const fMat = rotorMeshes[i].faceCap.material;
+      if (fMat.map !== targetSymTex) {
+        fMat.map = targetSymTex;
+        fMat.emissiveMap = targetSymTex;
+        fMat.needsUpdate = true;
+      }
+    }
+  }
+
+  let vaultProgress = 0;
+
+  function update(dt, elapsed) {
+    dust.rotation.y = elapsed * 0.018;
+    crtScreen.userData.baseEmissiveIntensity = 0.88 + Math.sin(elapsed * 28) * 0.03;
+    crtScreen.material.emissiveIntensity = crtScreen.userData.baseEmissiveIntensity;
+
+    // Sportello rotori e chiave
+    const targetKeyRot = state.consoleUnlocked ? Math.PI / 2 : 0;
+    insertedKey.rotation.y += (targetKeyRot - insertedKey.rotation.y) * Math.min(1, dt * 8);
+
+    const targetShutterZ = state.consoleUnlocked ? -0.32 : -0.02;
+    const targetShutterScale = state.consoleUnlocked ? 0.08 : 1;
+    shutterMesh.position.z += (targetShutterZ - shutterMesh.position.z) * Math.min(1, dt * 5.5);
+    shutterMesh.scale.z += (targetShutterScale - shutterMesh.scale.z) * Math.min(1, dt * 5.5);
+    shutterMesh.visible = shutterMesh.scale.z > 0.12;
+
+    for (let i = 0; i < 3; i++) {
+      rotorKicks[i] += (0 - rotorKicks[i]) * Math.min(1, dt * 12);
+      rotorMeshes[i].group.rotation.y = rotorKicks[i];
+    }
+
+    if (leverBounce > 0) {
+      leverBounce = Math.max(0, leverBounce - dt * 2.8);
+    }
+    const targetLeverRot = state.vaultOpen ? 0.58 : -0.52 + Math.sin(leverBounce * Math.PI) * 0.45;
+    leverPivot.rotation.x += (targetLeverRot - leverPivot.rotation.x) * Math.min(1, dt * 10);
+
+    // Sequenza cinematografica apertura Chiusa Circolare
+    const desiredVault = state.vaultOpen ? 1 : 0;
+    vaultProgress += (desiredVault - vaultProgress) * Math.min(1, dt * 0.95);
+
+    const lugPhase = Math.min(1, vaultProgress * 2.6);
+    for (const lug of lugs) {
+      lug.position.y = 1.08 - lugPhase * 0.28;
+    }
+
+    const rollPhase = Math.max(0, (vaultProgress - 0.22) / 0.78);
+    const easedRoll = 1 - Math.pow(1 - rollPhase, 3);
+    vaultDoor.position.x = -easedRoll * 2.15;
+    centerWheel.rotation.z = easedRoll * Math.PI * 2.5;
+    vaultDoor.rotation.z = easedRoll * 0.9;
+
+    portalDisk.material.color.setHex(vaultProgress > 0.05 ? 0xdbeeff : 0x080b0e);
+    portalDisk.userData.baseEmissive.setHex(0xc8e4ff);
+    portalDisk.userData.baseEmissiveIntensity = vaultProgress * 2.4;
+    portalDisk.material.emissive.copy(portalDisk.userData.baseEmissive);
+    portalDisk.material.emissiveIntensity = portalDisk.userData.baseEmissiveIntensity;
+    daylightSpot.intensity = vaultProgress * 18;
+
+    syncFromState();
+  }
+
+  syncFromState();
+
+  return {
+    id: 'control',
+    title: 'III · CAMERA DI CONTROLLO',
+    group,
+    defaultCamera: {
+      pos: new THREE.Vector3(0, 1.84, 3.72),
+      lookAt: new THREE.Vector3(0, 1.48, -2.5)
+    },
+    closeups: {
+      soot: {
+        pos: new THREE.Vector3(-2.25, 1.60, -2.27),
+        lookAt: new THREE.Vector3(-3.68, 1.60, -2.27)
+      },
+      console: {
+        pos: new THREE.Vector3(0, 1.86, 0.02),
+        lookAt: new THREE.Vector3(0, 1.02, -0.98)
+      }
+    },
+    update,
+    syncFromState
+  };
+}
