@@ -4,12 +4,28 @@ import {
   createCageLamp,
   createHandwheel,
   makeBrassMaterial,
+  makeGlassMaterial,
+  makePorcelainMaterial,
   makeRustMaterial,
+  makeWoodMaterial,
   tagInteractive
 } from './geometry.js';
 import {
+  createBankersLamp,
+  createBookcase,
+  createCurioCabinet,
+  createFramedPainting,
+  createPersianRug,
+  createPottedPlant,
+  createSideTableWithLamp,
+  createWallSconce,
+  createWineAndApothecaryRack,
+  disableRaycast
+} from './props.js';
+import {
   createGaugeDialTexture,
-  createPlaqueTexture
+  createPlaqueTexture,
+  getSoftParticleTexture
 } from '../textures.js';
 import {
   TARGET_PRESSURE,
@@ -21,72 +37,164 @@ import { sound } from '../audio.js';
 import { openDocument, renderInventory, whisper } from '../ui.js';
 
 export function buildBoilerRoom(actions) {
-  const { group, dust } = buildRoomShell({ width: 7.6, height: 4.2, depth: 7.2, wallTint: 0x6b615a });
+  const { group, dust } = buildRoomShell({
+    width: 7.6,
+    height: 4.2,
+    depth: 7.2,
+    theme: 'burgundy',
+    wallTint: 0xd9cfc2,
+    backCutouts: [[1.52, 2.98]]
+  });
 
-  const hemi = new THREE.HemisphereLight(0x4a3e36, 0x17100b, 0.42);
+  // Tappeto persiano ocra e bordeaux nella galleria centrale
+  const cellarRug = createPersianRug({ width: 3.9, depth: 2.9, palette: 'ochre' });
+  cellarRug.position.set(-0.2, 0, -0.35);
+  group.add(cellarRug);
+
+  const hemi = new THREE.HemisphereLight(0x5c493d, 0x1e130d, 0.46);
   group.add(hemi);
 
-  const mainLamp = createCageLamp({ color: 0xde7c35, intensity: 5.9, distance: 10.8 });
-  mainLamp.root.position.set(0.35, 3.62, -0.75);
+  const mainLamp = createCageLamp({ color: 0xe3883e, intensity: 6.1, distance: 11.2 });
+  mainLamp.root.position.set(0.25, 3.6, -0.75);
   group.add(mainLamp.root);
 
-  // --- 1. GRANDE CALDAIA RIVETTATA (SINISTRA / FONDO) ---
+  // --- ARREDI SCENOGRAFICI DELLA CANTINA-OFFICINA PADRONALE ---
+  // Grande scaffalatura in rovere con bottiglie d'annata, botti e vasi da speziale (parete destra fondo)
+  const wineRack = createWineAndApothecaryRack({ width: 1.55, height: 2.48, depth: 0.46 });
+  wineRack.position.set(3.48, 0, -2.05);
+  wineRack.rotation.y = -Math.PI / 2;
+  group.add(wineRack);
+
+  // Vetrina/cristalliera con caraffe, ampolle ambrate e calici (parete destra, ben visibile in quadro)
+  const curioCab = createCurioCabinet({ width: 1.12, height: 2.18, depth: 0.4 });
+  curioCab.position.set(3.5, 0, -0.45);
+  curioCab.rotation.y = -Math.PI / 2;
+  group.add(curioCab);
+
+  // Libreria tecnica / armadio da laboratorio sulla parete sinistra
+  const workshopLibrary = createBookcase({ width: 1.28, height: 2.62, depth: 0.42, seed: 404 });
+  workshopLibrary.position.set(-3.52, 0, -0.92);
+  workshopLibrary.rotation.y = Math.PI / 2;
+  group.add(workshopLibrary);
+
+  // Tavolino con lume ambrato nell'angolo anteriore destro (illumina anche il fronte della vasca)
+  const cornerLampTable = createSideTableWithLamp({ lampColor: 0xe69244, shadeTint: 0xc9702c });
+  cornerLampTable.position.set(2.92, 0, 0.62);
+  group.add(cornerLampTable);
+
+  // Pianta in vaso smaltato accanto al varco di ritorno
+  const conservatoryPlant = createPottedPlant({ scale: 1.02 });
+  conservatoryPlant.position.set(1.18, 0, -3.12);
+  group.add(conservatoryPlant);
+
+  // Applique in ottone e quadri d'epoca alle pareti
+  for (const sx of [-1.26, 1.18]) {
+    const sconce = createWallSconce({ color: 0xe89646, intensity: 1.55 });
+    sconce.position.set(sx, 2.46, -3.55);
+    group.add(sconce);
+  }
+
+  const botanicalPrint = createFramedPainting({ width: 0.94, height: 0.72, variant: 4, withLight: true });
+  botanicalPrint.position.set(-3.75, 2.38, 0.62);
+  botanicalPrint.rotation.y = Math.PI / 2;
+  group.add(botanicalPrint);
+
+  const celestialPrint = createFramedPainting({ width: 0.96, height: 0.74, variant: 2, withLight: false });
+  celestialPrint.position.set(3.75, 2.68, -0.68);
+  celestialPrint.rotation.y = -Math.PI / 2;
+  group.add(celestialPrint);
+
+  // --- 1. CALDAIA VITTORIANA IN RAME BRUNITO E OTTONE (SINISTRA / FONDO) ---
   const boilerTank = new THREE.Group();
   boilerTank.position.set(-2.35, 1.35, -2.25);
-  const boilerMat = makeRustMaterial(0x82513d, 0.66, 0.45);
+  const copperMat = makeRustMaterial(0x9e5938, 0.38, 0.68);
+  const brassBandMat = makeBrassMaterial(0xd4a657);
+  const castBaseMat = makeRustMaterial(0x362f2c, 0.58, 0.62);
 
-  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.92, 2.55, 24), boilerMat);
+  const basePedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.08, 0.24, 24), castBaseMat);
+  basePedestal.position.y = -1.23;
+  boilerTank.add(basePedestal);
+
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.45, 28), copperMat);
   cyl.castShadow = true;
   cyl.receiveShadow = true;
   boilerTank.add(cyl);
 
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.92, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), boilerMat);
-  dome.position.y = 1.27;
+  // Fasce cerchiate in ottone lucido lungo il fusto della caldaia
+  for (const by of [-0.95, -0.32, 0.32, 0.95]) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.918, 0.918, 0.065, 28), brassBandMat);
+    band.position.y = by;
+    boilerTank.add(band);
+  }
+
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.9, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+    copperMat
+  );
+  dome.position.y = 1.22;
   boilerTank.add(dome);
 
-  // Braciere debole dietro la griglia della caldaia
+  // Camino superiore in rame che sale al soffitto
+  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 1.1, 16), copperMat);
+  chimney.position.y = 2.35;
+  boilerTank.add(chimney);
+
+  // Focolare ardente dietro lo sportello in ghisa traforata
   const emberMat = new THREE.MeshStandardMaterial({
-    color: 0xff5e1f,
-    emissive: new THREE.Color(0xc93b0e),
-    emissiveIntensity: 1.6,
-    roughness: 0.5
+    color: 0xff6524,
+    emissive: new THREE.Color(0xd94211),
+    emissiveIntensity: 1.8,
+    roughness: 0.45
   });
-  const firebox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.28, 0.12), emberMat);
+  const firebox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.3, 0.12), emberMat);
   firebox.position.set(0.55, -0.75, 0.72);
   firebox.rotation.y = 0.6;
   boilerTank.add(firebox);
 
-  const emberLight = new THREE.PointLight(0xd94b1a, 2.8, 5.5, 2);
-  emberLight.position.set(0.8, -0.7, 1.0);
+  const fireboxFrame = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.38, 0.09), brassBandMat);
+  fireboxFrame.position.set(0.54, -0.75, 0.7);
+  fireboxFrame.rotation.y = 0.6;
+  boilerTank.add(fireboxFrame);
+
+  const emberLight = new THREE.PointLight(0xe05522, 2.9, 5.8, 1.9);
+  emberLight.position.set(0.82, -0.68, 1.02);
   boilerTank.add(emberLight);
 
+  disableRaycast(boilerTank);
   group.add(boilerTank);
 
-  // --- 2. COLLETTORE A 4 VALVOLE E MANOMETRO CENTRALE (β) ---
+  // --- 2. COLLETTORE IN MOGANO E OTTONE A 4 VALVOLE + MANOMETRO CENTRALE (β) ---
   const manifoldGroup = new THREE.Group();
   manifoldGroup.position.set(-0.15, 0, -3.32);
 
-  // Luce dedicata sul manometro e su tutte e quattro le valvole
-  const manifoldSpot = new THREE.PointLight(0xeba35b, 3.8, 5.2, 1.5);
-  manifoldSpot.position.set(0.15, 2.25, 1.15);
+  // Pannello a muro sagomato in mogano dietro il collettore
+  const backBoard = new THREE.Mesh(
+    new THREE.BoxGeometry(2.15, 2.85, 0.06),
+    makeWoodMaterial('mahogany', 0x916e57, 0.4)
+  );
+  backBoard.position.set(0, 1.56, -0.14);
+  backBoard.receiveShadow = true;
+  backBoard.raycast = () => {};
+  manifoldGroup.add(backBoard);
+
+  const manifoldSpot = new THREE.PointLight(0xeba35b, 3.8, 5.4, 1.5);
+  manifoldSpot.position.set(0.15, 2.28, 1.15);
   manifoldGroup.add(manifoldSpot);
 
-  // Trave orizzontale collettore
   const headerPipe = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.11, 0.11, 1.95, 16),
-    makeRustMaterial(0x362b26, 0.68, 0.75)
+    new THREE.CylinderGeometry(0.105, 0.105, 1.95, 18),
+    brassBandMat
   );
   headerPipe.rotation.z = Math.PI / 2;
   headerPipe.position.set(0, 2.02, 0.08);
   manifoldGroup.add(headerPipe);
 
-  // Manometro grande con simbolo β
   const gaugeGroup = new THREE.Group();
   gaugeGroup.position.set(0, 2.52, 0.14);
 
   const bezel = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.36, 0.36, 0.09, 32),
-    makeBrassMaterial(0x8f6f3e)
+    new THREE.CylinderGeometry(0.36, 0.38, 0.095, 32),
+    makeBrassMaterial(0xc49a50)
   );
   bezel.rotation.x = Math.PI / 2;
   gaugeGroup.add(bezel);
@@ -95,17 +203,16 @@ export function buildBoilerRoom(actions) {
     new THREE.CircleGeometry(0.325, 32),
     new THREE.MeshStandardMaterial({
       map: createGaugeDialTexture(),
-      roughness: 0.45,
+      roughness: 0.42,
       metalness: 0.15
     })
   );
-  dialFace.position.z = 0.048;
+  dialFace.position.z = 0.05;
   dialFace.userData.noHighlight = true;
   gaugeGroup.add(dialFace);
 
   const needlePivot = new THREE.Group();
-  needlePivot.position.set(0, 0, 0.056);
-  // Lancetta orientata verso +Y (corrisponde a 6 BAR quando rotation.z === 0)
+  needlePivot.position.set(0, 0, 0.058);
   const needle = new THREE.Mesh(
     new THREE.BoxGeometry(0.018, 0.25, 0.01),
     new THREE.MeshStandardMaterial({ color: 0x8f1d16, roughness: 0.35, metalness: 0.5 })
@@ -115,13 +222,12 @@ export function buildBoilerRoom(actions) {
 
   const needleCap = new THREE.Mesh(
     new THREE.CylinderGeometry(0.032, 0.032, 0.02, 14),
-    makeBrassMaterial(0x4a3922)
+    makeBrassMaterial(0x5c472b)
   );
   needleCap.rotation.x = Math.PI / 2;
   needlePivot.add(needleCap);
   gaugeGroup.add(needlePivot);
 
-  // Spia blocco pneumatico (si accende a 7 BAR)
   const lockLampMat = new THREE.MeshStandardMaterial({
     color: 0x2e251e,
     emissive: new THREE.Color(0x000000),
@@ -134,12 +240,11 @@ export function buildBoilerRoom(actions) {
 
   manifoldGroup.add(gaugeGroup);
 
-  // Le 4 condotte e i 4 volantini: I (Rame), II (Ottone), III (Piombo), IV (Ghisa)
   const valveSpecs = [
-    { roman: 'I', metal: 'Rame', pipeMat: makeRustMaterial(0xc96e44, 0.42, 0.62), wheelMat: makeRustMaterial(0xd9794c, 0.40, 0.58) },
-    { roman: 'II', metal: 'Ottone', pipeMat: makeBrassMaterial(0xc9a152), wheelMat: makeBrassMaterial(0xd9b05c) },
-    { roman: 'III', metal: 'Piombo', pipeMat: makeRustMaterial(0x707b88, 0.52, 0.54), wheelMat: makeRustMaterial(0x7e8a98, 0.48, 0.54) },
-    { roman: 'IV', metal: 'Ghisa', pipeMat: makeRustMaterial(0x6e5246, 0.68, 0.45), wheelMat: makeRustMaterial(0x805f50, 0.64, 0.45) }
+    { roman: 'I', metal: 'Rame', pipeMat: makeRustMaterial(0xc96e44, 0.38, 0.66), wheelMat: makeRustMaterial(0xd9794c, 0.36, 0.62) },
+    { roman: 'II', metal: 'Ottone', pipeMat: makeBrassMaterial(0xcfa554), wheelMat: makeBrassMaterial(0xdfb562) },
+    { roman: 'III', metal: 'Piombo', pipeMat: makeRustMaterial(0x74808d, 0.46, 0.58), wheelMat: makeRustMaterial(0x83909e, 0.44, 0.58) },
+    { roman: 'IV', metal: 'Ghisa', pipeMat: makeRustMaterial(0x52453f, 0.58, 0.52), wheelMat: makeRustMaterial(0x69544b, 0.54, 0.52) }
   ];
 
   const wheelMeshes = [];
@@ -155,20 +260,18 @@ export function buildBoilerRoom(actions) {
     pipe.castShadow = true;
     vCol.add(pipe);
 
-    // Targhetta numero romano sopra ogni volantino
     const rTag = new THREE.Mesh(
       new THREE.PlaneGeometry(0.18, 0.11),
       new THREE.MeshStandardMaterial({
         map: createPlaqueTexture(spec.roman, '', false),
-        roughness: 0.5,
-        metalness: 0.7
+        roughness: 0.45,
+        metalness: 0.72
       })
     );
     rTag.position.set(0, 1.78, 0.075);
     rTag.userData.noHighlight = true;
     vCol.add(rTag);
 
-    // Collare indicatore stato (spento = chiusa, ambra/verde = aperta)
     const collarMat = new THREE.MeshStandardMaterial({
       color: 0x26201c,
       emissive: new THREE.Color(0x000000),
@@ -180,7 +283,6 @@ export function buildBoilerRoom(actions) {
     vCol.add(collar);
     statusCollars.push(collarMat);
 
-    // Albero e volantino 3D
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.18, 10), spec.pipeMat);
     stem.rotation.x = Math.PI / 2;
     stem.position.set(0, 1.38, 0.09);
@@ -191,7 +293,6 @@ export function buildBoilerRoom(actions) {
     const wheel = createHandwheel(0.165, 0.022, spec.wheelMat);
     wheelHolder.add(wheel);
 
-    // Disco hitbox pieno affinché il clic tra le razze del volantino sia sempre preciso
     const wheelHitbox = new THREE.Mesh(
       new THREE.CylinderGeometry(0.19, 0.19, 0.08, 16),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
@@ -241,7 +342,6 @@ export function buildBoilerRoom(actions) {
     manifoldGroup.add(vCol);
   });
 
-  // Sbuffo di vapore particellare
   const puffCount = 28;
   const puffPositions = new Float32Array(puffCount * 3);
   const puffVelocities = [];
@@ -251,13 +351,15 @@ export function buildBoilerRoom(actions) {
   const puffGeo = new THREE.BufferGeometry();
   puffGeo.setAttribute('position', new THREE.BufferAttribute(puffPositions, 3));
   const puffMat = new THREE.PointsMaterial({
-    color: 0xd8d2c9,
-    size: 0.09,
+    map: getSoftParticleTexture(),
+    color: 0xe2dbd0,
+    size: 0.14,
     transparent: true,
     opacity: 0,
     depthWrite: false
   });
   const steamPoints = new THREE.Points(puffGeo, puffMat);
+  steamPoints.raycast = () => {};
   manifoldGroup.add(steamPoints);
   let puffLife = 0;
 
@@ -277,7 +379,6 @@ export function buildBoilerRoom(actions) {
     puffGeo.attributes.position.needsUpdate = true;
   }
 
-  // Proxy zoom sull'intero collettore dalla visuale stanza
   const manifoldZoomProxy = new THREE.Mesh(
     new THREE.BoxGeometry(1.95, 1.95, 0.45),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
@@ -295,41 +396,80 @@ export function buildBoilerRoom(actions) {
   manifoldGroup.add(manifoldZoomProxy);
   group.add(manifoldGroup);
 
-  // --- 3. BANCO DA LAVORO + REGISTRO DI MACCHINA (SINISTRA AVANTI) ---
+  // --- 3. SCRITTOIO DA ARTIGIANO IN NOCE + LAMPADA VERDE + REGISTRO (SINISTRA AVANTI) ---
   const deskGroup = new THREE.Group();
-  deskGroup.position.set(-2.65, 0, 0.25);
-  deskGroup.rotation.y = 0.35;
-  const deskMat = makeRustMaterial(0x70584b, 0.70, 0.42);
+  deskGroup.position.set(-2.62, 0, 0.35);
+  deskGroup.rotation.y = 0.38;
+  const deskWood = makeWoodMaterial('walnut', 0x99795f, 0.4);
+  const deskDark = makeWoodMaterial('mahogany', 0x785642, 0.44);
 
-  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 1.35), deskMat);
+  const deskProps = new THREE.Group();
+
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.055, 1.46), deskWood);
   deskTop.position.y = 0.88;
   deskTop.castShadow = true;
   deskTop.receiveShadow = true;
-  deskGroup.add(deskTop);
+  deskProps.add(deskTop);
 
-  for (const [lx, lz] of [[-0.4, -0.58], [0.4, -0.58], [-0.4, 0.58], [0.4, 0.58]]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.88, 0.07), deskMat);
-    leg.position.set(lx, 0.44, lz);
-    deskGroup.add(leg);
+  // Fascia cassetti con pomelli in ottone
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, 1.36), deskDark);
+  apron.position.y = 0.77;
+  deskProps.add(apron);
+
+  for (const dz of [-0.34, 0.34]) {
+    const pull = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), brassBandMat);
+    pull.position.set(0.47, 0.77, dz);
+    deskProps.add(pull);
   }
 
-  // Luce calda bassa sul registro
-  const deskLight = new THREE.PointLight(0xd9924c, 1.8, 3.0, 2);
-  deskLight.position.set(0.1, 1.38, 0);
+  for (const [lx, lz] of [[-0.43, -0.63], [0.43, -0.63], [-0.43, 0.63], [0.43, 0.63]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.028, 0.88, 12), deskWood);
+    leg.position.set(lx, 0.44, lz);
+    leg.castShadow = true;
+    deskProps.add(leg);
+  }
+
+  // Lampada verde da banchiere + calamaio + ampolla + progetti arrotolati agli angoli dello scrittoio
+  const bankersLamp = createBankersLamp();
+  bankersLamp.position.set(-0.22, 0.905, -0.44);
+  bankersLamp.rotation.y = -0.4;
+  deskProps.add(bankersLamp);
+
+  const inkBottle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.038, 0.048, 0.08, 12),
+    makeGlassMaterial(0x23384d, 0.75)
+  );
+  inkBottle.position.set(-0.26, 0.945, 0.42);
+  deskProps.add(inkBottle);
+
+  const scrollTube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.032, 0.032, 0.42, 12),
+    makePorcelainMaterial(0xd9ceb8)
+  );
+  scrollTube.rotation.x = Math.PI / 2;
+  scrollTube.rotation.z = 0.25;
+  scrollTube.position.set(-0.28, 0.935, 0.06);
+  deskProps.add(scrollTube);
+
+  disableRaycast(deskProps);
+  deskGroup.add(deskProps);
+
+  const deskLight = new THREE.PointLight(0xe5a458, 2.2, 3.4, 1.85);
+  deskLight.position.set(0.05, 1.32, -0.15);
   deskGroup.add(deskLight);
 
-  // Registro aperto macchiato d'olio
+  // Registro di macchina interattivo ben esposto sul lato anteriore dello scrittoio
   const bookGroup = new THREE.Group();
-  bookGroup.position.set(0.06, 0.925, 0.04);
+  bookGroup.position.set(0.14, 0.925, 0.06);
   bookGroup.rotation.y = -0.22;
   const cover = new THREE.Mesh(
     new THREE.BoxGeometry(0.38, 0.025, 0.28),
-    new THREE.MeshStandardMaterial({ color: 0x3b2319, roughness: 0.85 })
+    new THREE.MeshStandardMaterial({ color: 0x472119, roughness: 0.78 })
   );
   bookGroup.add(cover);
   const pages = new THREE.Mesh(
     new THREE.BoxGeometry(0.35, 0.032, 0.25),
-    new THREE.MeshStandardMaterial({ color: 0xbcae93, roughness: 0.9 })
+    new THREE.MeshStandardMaterial({ color: 0xcec0a5, roughness: 0.88 })
   );
   pages.position.y = 0.008;
   bookGroup.add(pages);
@@ -358,74 +498,98 @@ export function buildBoilerRoom(actions) {
   deskGroup.add(bookGroup);
   group.add(deskGroup);
 
-  // --- 4. VASCA DI SCOLMO + FUSIBILE CERAMICO (DESTRA AVANTI) ---
+  // --- 4. VASCA DI DECANTAZIONE BASSA IN NOCE, MAIOLICA E OTTONE + FUSIBILE CERAMICO (DESTRA AVANTI) ---
   const basinGroup = new THREE.Group();
-  basinGroup.position.set(1.62, 0, -0.18);
-  const curbMat = makeRustMaterial(0x5c5754, 0.80, 0.28);
+  basinGroup.position.set(1.56, 0, -0.22);
+  const curbWood = makeWoodMaterial('walnut', 0x947359, 0.4);
+  const tileInterior = makePorcelainMaterial(0x2d3f3c);
 
-  // Muretti perimetrali della vasca
-  const bw = 1.38;
-  const bd = 1.56;
-  const bh = 0.56;
-  const wallThick = 0.12;
+  const bw = 1.36;
+  const bd = 1.52;
+  const bh = 0.36;
+  const wallThick = 0.11;
 
-  const frontCurb = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, wallThick), curbMat);
+  const basinShell = new THREE.Group();
+  const frontCurb = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, wallThick), curbWood);
   frontCurb.position.set(0, bh / 2, bd / 2);
-  basinGroup.add(frontCurb);
-  const backCurb = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, wallThick), curbMat);
-  backCurb.position.set(0, bh / 2, -bd / 2);
-  basinGroup.add(backCurb);
-  const leftCurb = new THREE.Mesh(new THREE.BoxGeometry(wallThick, bh, bd), curbMat);
-  leftCurb.position.set(-bw / 2, bh / 2, 0);
-  basinGroup.add(leftCurb);
-  const rightCurb = new THREE.Mesh(new THREE.BoxGeometry(wallThick, bh, bd), curbMat);
-  rightCurb.position.set(bw / 2, bh / 2, 0);
-  basinGroup.add(rightCurb);
+  frontCurb.castShadow = true;
+  basinShell.add(frontCurb);
 
-  // Griglia di fondo
+  // Targa/fregio d'ottone sul fronte della vasca per staccare il volume
+  const frontPlaque = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.14, 0.02), brassBandMat);
+  frontPlaque.position.set(0, bh * 0.52, bd / 2 + 0.06);
+  basinShell.add(frontPlaque);
+
+  const backCurb = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, wallThick), curbWood);
+  backCurb.position.set(0, bh / 2, -bd / 2);
+  basinShell.add(backCurb);
+
+  const leftCurb = new THREE.Mesh(new THREE.BoxGeometry(wallThick, bh, bd), curbWood);
+  leftCurb.position.set(-bw / 2, bh / 2, 0);
+  leftCurb.castShadow = true;
+  basinShell.add(leftCurb);
+
+  const rightCurb = new THREE.Mesh(new THREE.BoxGeometry(wallThick, bh, bd), curbWood);
+  rightCurb.position.set(bw / 2, bh / 2, 0);
+  basinShell.add(rightCurb);
+
+  // Bordo superiore sottile rifinito in ottone brunito
+  const topRimF = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.03, 0.022, wallThick + 0.02), brassBandMat);
+  topRimF.position.set(0, bh + 0.01, bd / 2);
+  basinShell.add(topRimF);
+  const topRimB = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.03, 0.022, wallThick + 0.02), brassBandMat);
+  topRimB.position.set(0, bh + 0.01, -bd / 2);
+  basinShell.add(topRimB);
+  const topRimL = new THREE.Mesh(new THREE.BoxGeometry(wallThick + 0.02, 0.022, bd + 0.03), brassBandMat);
+  topRimL.position.set(-bw / 2, bh + 0.01, 0);
+  basinShell.add(topRimL);
+  const topRimR = new THREE.Mesh(new THREE.BoxGeometry(wallThick + 0.02, 0.022, bd + 0.03), brassBandMat);
+  topRimR.position.set(bw / 2, bh + 0.01, 0);
+  basinShell.add(topRimR);
+
   const bottomGrate = new THREE.Mesh(
     new THREE.PlaneGeometry(bw - 0.16, bd - 0.16),
-    makeRustMaterial(0x241b17, 0.8, 0.6)
+    tileInterior
   );
   bottomGrate.rotation.x = -Math.PI / 2;
-  bottomGrate.position.y = 0.12;
-  basinGroup.add(bottomGrate);
+  bottomGrate.position.y = 0.18;
+  basinShell.add(bottomGrate);
 
-  // Acqua nera oleosa che scende quando basinDrained === true
+  disableRaycast(basinShell);
+  basinGroup.add(basinShell);
+
   const sludgeMat = new THREE.MeshStandardMaterial({
-    color: 0x0a0d0c,
-    roughness: 0.08,
+    color: 0x0d1211,
+    roughness: 0.07,
     metalness: 0.88,
     transparent: true,
-    opacity: 0.93
+    opacity: 0.94
   });
   const sludgeMesh = new THREE.Mesh(new THREE.PlaneGeometry(bw - 0.16, bd - 0.16), sludgeMat);
   sludgeMesh.rotation.x = -Math.PI / 2;
-  sludgeMesh.position.y = 0.48;
+  sludgeMesh.position.y = 0.33;
   basinGroup.add(sludgeMesh);
 
-  // Luce puntata sulla vasca per far risaltare il fusibile bianco una volta drenata
-  const basinSpot = new THREE.PointLight(0x9fb8cc, 2.2, 3.6, 2);
-  basinSpot.position.set(0, 1.65, 0);
+  const basinSpot = new THREE.PointLight(0xcfe0ec, 2.5, 4.0, 1.8);
+  basinSpot.position.set(0, 1.55, 0.15);
   basinGroup.add(basinSpot);
 
-  // Fusibile ceramico adagiato sul fondo della vasca
+  // Fusibile ceramico ben visibile sul ripiano interno appena l'acqua scende
   const fusePickup = new THREE.Group();
-  fusePickup.position.set(-0.08, 0.18, 0.06);
-  fusePickup.rotation.set(Math.PI / 2, 0, 0.55);
+  fusePickup.position.set(-0.06, 0.245, -0.14);
+  fusePickup.rotation.set(Math.PI / 2, 0, 0.48);
   const fBody = new THREE.Mesh(
     new THREE.CylinderGeometry(0.055, 0.055, 0.28, 16),
-    new THREE.MeshStandardMaterial({ color: 0xe8e2d5, roughness: 0.28, metalness: 0.1 })
+    new THREE.MeshStandardMaterial({ color: 0xede6d8, roughness: 0.25, metalness: 0.1 })
   );
   fusePickup.add(fBody);
-  const brassCapMat = makeBrassMaterial(0xc49248);
+  const brassCapMat = makeBrassMaterial(0xd19f52);
   for (const cy of [-0.13, 0.13]) {
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 16), brassCapMat);
     cap.position.y = cy;
     fusePickup.add(cap);
   }
 
-  // Hitbox generosa per cliccare comodamente il fusibile
   const fuseHitbox = new THREE.Mesh(
     new THREE.BoxGeometry(0.38, 0.42, 0.25),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
@@ -461,31 +625,31 @@ export function buildBoilerRoom(actions) {
   // --- 5. PORTA DI RITORNO -> ANTICAMERA SOMMERSA (FONDO DESTRA) ---
   const backDoor = new THREE.Group();
   backDoor.position.set(2.25, 0, -3.54);
-  const doorFrameMat = makeRustMaterial(0x6e5244, 0.68, 0.46);
+  const doorFrameWood = makeWoodMaterial('walnut', 0x8c6d54, 0.42);
+  const wroughtMat = makeRustMaterial(0x3a3431, 0.48, 0.68);
 
   const voidBack = new THREE.Mesh(
     new THREE.PlaneGeometry(1.36, 2.58),
-    new THREE.MeshBasicMaterial({ color: 0x040608 })
+    new THREE.MeshBasicMaterial({ color: 0x131d21 })
   );
   voidBack.position.set(0, 1.29, -0.01);
   voidBack.userData.noHighlight = true;
   backDoor.add(voidBack);
 
   for (const sx of [-0.72, 0.72]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.68, 0.15), doorFrameMat);
-    post.position.set(sx, 1.34, 0.02);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.7, 0.16), doorFrameWood);
+    post.position.set(sx, 1.35, 0.02);
     backDoor.add(post);
   }
-  const topBar = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.14, 0.16), doorFrameMat);
-  topBar.position.set(0, 2.64, 0.02);
+  const topBar = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.16, 0.18), doorFrameWood);
+  topBar.position.set(0, 2.66, 0.02);
   backDoor.add(topBar);
 
-  // Sbarre socchiuse
   const returnGrate = new THREE.Group();
   returnGrate.position.set(-0.66, 0, 0.05);
   returnGrate.rotation.y = 0.42;
   for (let i = 0; i <= 5; i++) {
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.52, 8), doorFrameMat);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.52, 8), wroughtMat);
     b.position.set(0.12 + i * 0.22, 1.28, 0);
     returnGrate.add(b);
   }
@@ -529,12 +693,10 @@ export function buildBoilerRoom(actions) {
   }
 
   function update(dt, elapsed) {
-    // Tremolio caldaia e lampada
-    emberLight.intensity = 2.5 + Math.sin(elapsed * 9.4) * 0.45 + Math.cos(elapsed * 21.1) * 0.25;
-    mainLamp.light.intensity = 6.2 + Math.sin(elapsed * 13.5) * 0.18;
+    emberLight.intensity = 2.6 + Math.sin(elapsed * 9.4) * 0.42 + Math.cos(elapsed * 21.1) * 0.22;
+    mainLamp.light.intensity = 6.1 + Math.sin(elapsed * 11.5) * 0.14;
     dust.rotation.y = -elapsed * 0.014;
 
-    // Rotazione fluida dei 4 volantini e della lancetta del manometro
     for (let i = 0; i < 4; i++) {
       const targetWheelRot = state.valves[i] ? -Math.PI * 0.75 : 0;
       wheelMeshes[i].rotation.z += (targetWheelRot - wheelMeshes[i].rotation.z) * Math.min(1, dt * 8);
@@ -545,12 +707,10 @@ export function buildBoilerRoom(actions) {
     const targetNeedleAngle = ((6 - clampedBar) / 6) * ((3 * Math.PI) / 4);
     needlePivot.rotation.z += (targetNeedleAngle - needlePivot.rotation.z) * Math.min(1, dt * 5.5);
 
-    // Drenaggio acqua nella vasca
-    const targetWaterY = state.basinDrained ? 0.04 : 0.48;
+    const targetWaterY = state.basinDrained ? 0.08 : 0.33;
     sludgeMesh.position.y += (targetWaterY - sludgeMesh.position.y) * Math.min(1, dt * 2.2);
-    sludgeMesh.visible = sludgeMesh.position.y > 0.06;
+    sludgeMesh.visible = sludgeMesh.position.y > 0.12;
 
-    // Animazione sbuffo di vapore
     if (puffLife > 0) {
       puffLife = Math.max(0, puffLife - dt * 1.6);
       puffMat.opacity = puffLife * 0.52;

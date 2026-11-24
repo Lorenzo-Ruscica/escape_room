@@ -65,11 +65,9 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: 0.038;
+  opacity: 0.022;
   background-image:
-    repeating-radial-gradient(circle at 17% 32%, rgba(255, 248, 236, 0.8) 0 0.7px, transparent 0.8px 3px),
-    repeating-radial-gradient(circle at 78% 69%, rgba(0, 0, 0, 0.9) 0 0.8px, transparent 0.9px 4px);
-  background-size: 120px 120px, 160px 160px;
+    repeating-linear-gradient(0deg, rgba(255, 248, 236, 0.18) 0 1px, transparent 1px 3px);
 }
 
 /* Transizione morbida tra stanze */
@@ -197,17 +195,63 @@ body {
   margin-top: 0.2rem;
 }
 
+/* Barra discreta in alto a sinistra (capitolo + stanza) */
+.top-left-bar {
+  position: fixed;
+  top: 1.05rem;
+  left: 1.35rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.chapter-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0.42;
+  transition: opacity 0.22s ease;
+}
+
+.chapter-nav:hover,
+.chapter-nav:focus-within {
+  opacity: 0.96;
+}
+
+.chapter-pill {
+  padding: 0.2rem 0.48rem;
+  background: rgba(12, 14, 18, 0.45);
+  border: 1px solid rgba(196, 180, 156, 0.16);
+  border-radius: 999px;
+  color: rgba(206, 196, 180, 0.65);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.chapter-pill:hover,
+.chapter-pill:focus-visible {
+  color: #fff;
+  border-color: rgba(214, 146, 78, 0.55);
+  outline: none;
+}
+
+.chapter-pill.is-active {
+  color: #f0cfa2;
+  border-color: rgba(214, 146, 78, 0.62);
+  background: rgba(214, 146, 78, 0.13);
+}
+
 /* Micro-indicatore stanza */
 .room-tag {
-  position: fixed;
-  top: 1.25rem;
-  left: 1.4rem;
-  z-index: 5;
   pointer-events: none;
   font-family: var(--font-mono);
   font-size: 0.66rem;
   letter-spacing: 0.24em;
-  color: rgba(196, 186, 170, 0.36);
+  color: rgba(196, 186, 170, 0.42);
   text-transform: uppercase;
   transition: opacity 0.4s ease;
 }
@@ -649,6 +693,24 @@ dialog::backdrop {
 
 .ending-sheet .doc-footer {
   justify-content: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.doc-close-btn.is-primary {
+  border-color: rgba(214, 146, 78, 0.68);
+  background-color: rgba(214, 146, 78, 0.16);
+  color: #ffe0b5;
+}
+
+.doc-close-btn.is-primary:hover,
+.doc-close-btn.is-primary:focus-visible {
+  background-color: rgba(214, 146, 78, 0.28);
+  color: #fff;
+}
+
+.doc-close-btn.is-subtle {
+  opacity: 0.76;
 }
 
 @media (max-width: 600px) {

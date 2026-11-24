@@ -1,9 +1,13 @@
-import { ITEMS, state } from './state.js';
+import { ITEMS, LEVELS, state } from './state.js';
 import { sound } from './audio.js';
 
 const reticleEl = document.getElementById('reticle');
 const watermarkEl = document.getElementById('intro-watermark');
+const watermarkCodeEl = document.getElementById('watermark-code');
+const watermarkTitleEl = document.getElementById('watermark-title');
+const watermarkSubEl = document.getElementById('watermark-sub');
 const roomTagEl = document.getElementById('room-tag');
+const chapterBtns = Array.from(document.querySelectorAll('.chapter-pill'));
 const audioBtn = document.getElementById('audio-toggle');
 const brightnessSlider = document.getElementById('brightness-slider');
 const closeupBackBtn = document.getElementById('closeup-back');
@@ -19,13 +23,16 @@ const docBodyEl = document.getElementById('doc-body');
 const docCloseBtn = document.getElementById('doc-close');
 
 const endingDialog = document.getElementById('ending-dialog');
+const endingMetaEl = document.getElementById('ending-meta');
+const endingTitleEl = document.getElementById('ending-title');
+const endingCopyEl = document.getElementById('ending-copy');
 const endingStatsEl = document.getElementById('ending-stats');
 const restartBtn = document.getElementById('restart-btn');
+const nextLevelBtn = document.getElementById('next-level-btn');
 
 let whisperTimer = null;
 let supportsDisplayTransition;
 
-// Rilevamento affidabile del supporto transizioni discrete su display (incluso bug Firefox)
 function canTransitionDisplay() {
   if (supportsDisplayTransition !== undefined) return supportsDisplayTransition;
   if (!window.CSS?.supports?.('transition-behavior', 'allow-discrete') || !document.body) {
@@ -62,12 +69,23 @@ export async function closeTopLayer(dialog) {
   dialog.close();
 }
 
-export function initUI({ onLeaveCloseup, onRestart, onBrightnessChange }) {
+export function initUI({ onLeaveCloseup, onRestart, onSelectLevel, onBrightnessChange }) {
   if (window.matchMedia('(pointer: fine)').matches) {
     document.body.classList.add('custom-cursor');
     window.addEventListener('pointermove', (e) => {
       reticleEl.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
     }, { passive: true });
+  }
+
+  for (const btn of chapterBtns) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const targetLvl = Number(btn.dataset.level);
+      if (targetLvl && onSelectLevel) {
+        sound.playDoorTransition();
+        onSelectLevel(targetLvl);
+      }
+    });
   }
 
   if (brightnessSlider) {
@@ -103,7 +121,6 @@ export function initUI({ onLeaveCloseup, onRestart, onBrightnessChange }) {
     }
   });
 
-  // Gestione dialoghi nativi (<dialog>) + fallback closedby + animazione uscita
   for (const dialog of [docDialog, endingDialog]) {
     dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
@@ -114,7 +131,6 @@ export function initUI({ onLeaveCloseup, onRestart, onBrightnessChange }) {
     });
   }
 
-  // Fallback light-dismiss per browser senza closedby nativo
   if (!('closedBy' in HTMLDialogElement.prototype)) {
     docDialog.addEventListener('click', (event) => {
       if (event.target !== docDialog) return;
@@ -138,6 +154,31 @@ export function initUI({ onLeaveCloseup, onRestart, onBrightnessChange }) {
     await closeTopLayer(endingDialog);
     onRestart();
   });
+
+  nextLevelBtn.addEventListener('click', async () => {
+    const ep = LEVELS[state.currentLevel]?.epilogue;
+    await closeTopLayer(endingDialog);
+    if (ep?.nextLevel && onSelectLevel) {
+      onSelectLevel(ep.nextLevel);
+    } else if (onSelectLevel) {
+      onSelectLevel(1);
+    }
+  });
+}
+
+export function syncChapterUI(showBanner = false) {
+  const meta = LEVELS[state.currentLevel] || LEVELS[1];
+  for (const btn of chapterBtns) {
+    const active = Number(btn.dataset.level) === state.currentLevel;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-current', active ? 'true' : 'false');
+  }
+  if (watermarkCodeEl) watermarkCodeEl.textContent = meta.code;
+  if (watermarkTitleEl) watermarkTitleEl.textContent = meta.title;
+  if (watermarkSubEl) watermarkSubEl.textContent = meta.subtitle;
+  if (showBanner) {
+    watermarkEl.classList.remove('is-hidden');
+  }
 }
 
 export function hideWatermark() {
@@ -226,10 +267,26 @@ export function openDocument({ meta, title, html }) {
 }
 
 export function openEndingScreen() {
+  const lvlMeta = LEVELS[state.currentLevel] || LEVELS[1];
+  const ep = lvlMeta.epilogue;
   const elapsedSec = Math.max(1, Math.round((performance.now() - state.startedAt) / 1000));
   const mins = Math.floor(elapsedSec / 60);
   const secs = String(elapsedSec % 60).padStart(2, '0');
-  endingStatsEl.textContent = `TEMPO TRASCORSO: ${mins}m ${secs}s  ·  AZIONI: ${state.interactions}`;
+
+  endingMetaEl.textContent = ep.meta;
+  endingTitleEl.textContent = ep.title;
+  endingCopyEl.textContent = ep.copy;
+  endingStatsEl.textContent = `CAPITOLO ${lvlMeta.roman} COMPLETATO  ·  TEMPO: ${mins}m ${secs}s  ·  AZIONI: ${state.interactions}`;
+  restartBtn.textContent = `Rigioca Capitolo ${lvlMeta.roman}`;
+
+  if (ep.nextLevel) {
+    nextLevelBtn.hidden = false;
+    nextLevelBtn.textContent = ep.nextLabel;
+  } else {
+    nextLevelBtn.hidden = false;
+    nextLevelBtn.textContent = 'Torna al Capitolo I';
+  }
+
   if (!endingDialog.open) {
     endingDialog.showModal();
   }

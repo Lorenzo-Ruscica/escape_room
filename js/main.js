@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { resetState, state } from './state.js';
+import { LEVELS, resetState, state } from './state.js';
 import { sound } from './audio.js';
 import {
   hideWatermark,
@@ -15,11 +15,15 @@ import {
   setCloseupUI,
   setHoverFeedback,
   setRoomTitle,
+  syncChapterUI,
   whisper
 } from './ui.js';
 import { buildVestibuleRoom } from './rooms/vestibule.js';
 import { buildBoilerRoom } from './rooms/boiler.js';
 import { buildControlRoom } from './rooms/control.js';
+import { buildGreenhouseRoom } from './rooms/greenhouse.js';
+import { buildDarkroomRoom } from './rooms/darkroom.js';
+import { buildLighthouseRoom } from './rooms/lighthouse.js';
 
 const canvas = document.getElementById('scene-canvas');
 const roomFadeEl = document.getElementById('room-fade');
@@ -44,17 +48,15 @@ renderer.toneMappingExposure = BASE_EXPOSURE;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x060709);
-scene.fog = new THREE.FogExp2(0x07080b, 0.034);
+scene.background = new THREE.Color(0x080709);
+scene.fog = new THREE.FogExp2(0x09080a, 0.021);
 
-// Riflessi PBR ambientali misurati: gli oggetti metallici emergono dall'ombra senza slavare la stanza
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.045).texture;
 scene.environmentIntensity = BASE_ENV_INTENSITY;
 pmremGenerator.dispose();
 
 const camera = new THREE.PerspectiveCamera(54, window.innerWidth / window.innerHeight, 0.08, 30);
-// Riempimento debolissimo vicino all'osservatore per evitare il nero assoluto preservando il buio
 const viewerFillLight = new THREE.PointLight(0x8896a6, BASE_FILL_INTENSITY, 10, 1.5);
 camera.add(viewerFillLight);
 scene.add(camera);
@@ -65,7 +67,6 @@ function applyBrightnessMultiplier(mult) {
   viewerFillLight.intensity = BASE_FILL_INTENSITY * Math.pow(mult, 1.35);
 }
 
-// Post-processing atmosferico discreto (Bloom morbido sulle luci e sui fosfori)
 let composer = null;
 let bloomPass = null;
 try {
@@ -89,7 +90,6 @@ function updateCameraProjection() {
   const aspect = w / h;
   camera.aspect = aspect;
 
-  // Garantisce sia un FOV verticale minimo sia un FOV orizzontale minimo (così le pareti laterali restano sempre inquadrate)
   const minVFovDeg = state.closeupId ? 46 : 54;
   const minHFovDeg = state.closeupId ? 62 : 86;
   const minHFovRad = THREE.MathUtils.degToRad(minHFovDeg);
@@ -178,15 +178,27 @@ const actions = {
   }
 };
 
-function buildAllRooms() {
+function buildLevelRooms(level = state.currentLevel) {
   if (activeRoom) {
     scene.remove(activeRoom.group);
   }
-  rooms = {
-    vestibule: buildVestibuleRoom(actions),
-    boiler: buildBoilerRoom(actions),
-    control: buildControlRoom(actions)
-  };
+  if (level === 2) {
+    scene.fog.color.setHex(0x091116);
+    scene.background.setHex(0x070d12);
+    rooms = {
+      greenhouse: buildGreenhouseRoom(actions),
+      darkroom: buildDarkroomRoom(actions),
+      lighthouse: buildLighthouseRoom(actions)
+    };
+  } else {
+    scene.fog.color.setHex(0x09080a);
+    scene.background.setHex(0x080709);
+    rooms = {
+      vestibule: buildVestibuleRoom(actions),
+      boiler: buildBoilerRoom(actions),
+      control: buildControlRoom(actions)
+    };
+  }
   activeRoom = rooms[state.currentRoom];
   scene.add(activeRoom.group);
   setRoomTitle(activeRoom.title);
@@ -198,34 +210,41 @@ function buildAllRooms() {
   updateCameraProjection();
 }
 
-function restartGame() {
+function loadLevel(targetLevel) {
+  const lvl = LEVELS[targetLevel] ? targetLevel : 1;
+  isTransitioning = true;
+  clearHovered();
   roomFadeEl.classList.add('is-visible');
   sound.setPowerHum(false);
+
   window.setTimeout(() => {
-    resetState();
+    resetState(lvl);
     renderInventory();
-    buildAllRooms();
-    whisper('L’acqua gocciola dal soffitto di cemento. Il silenzio del sotterraneo è intatto.');
+    syncChapterUI(true);
+    buildLevelRooms(lvl);
+    whisper(LEVELS[lvl].introWhisper);
     window.setTimeout(() => {
       roomFadeEl.classList.remove('is-visible');
+      isTransitioning = false;
     }, 150);
   }, 480);
 }
 
 initUI({
   onLeaveCloseup: () => actions.leaveCloseup(),
-  onRestart: restartGame,
+  onRestart: () => loadLevel(state.currentLevel),
+  onSelectLevel: (lvl) => loadLevel(lvl),
   onBrightnessChange: applyBrightnessMultiplier
 });
 
-buildAllRooms();
+syncChapterUI(true);
+buildLevelRooms(state.currentLevel);
 renderInventory();
 
-// Dissolvenza d'apertura morbida
 window.requestAnimationFrame(() => {
   window.setTimeout(() => {
     roomFadeEl.classList.remove('is-visible');
-    whisper('Aria umida e odore di ruggine. Trova un modo per riattivare la Soglia.');
+    whisper(LEVELS[state.currentLevel].introWhisper);
   }, 180);
 });
 
@@ -346,7 +365,6 @@ canvas.addEventListener('click', (e) => {
     hoveredInteractive.onClick();
     updateRaycast();
   } else if (state.closeupId && (Math.abs(pointerNDC.x) > 0.72 || Math.abs(pointerNDC.y) > 0.72)) {
-    // Clic sui margini esterni dello schermo per allontanarsi senza uscite accidentali vicino ai controlli
     actions.leaveCloseup();
   }
 });

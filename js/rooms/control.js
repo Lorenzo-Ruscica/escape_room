@@ -4,9 +4,24 @@ import {
   createCageLamp,
   createHandwheel,
   makeBrassMaterial,
+  makeFabricMaterial,
   makeRustMaterial,
+  makeWoodMaterial,
   tagInteractive
 } from './geometry.js';
+import {
+  createBankersLamp,
+  createBookcase,
+  createCandelabra,
+  createFramedPainting,
+  createGlobeStand,
+  createPersianRug,
+  createPottedPlant,
+  createSideTableWithLamp,
+  createTuftedArmchair,
+  createWallSconce,
+  disableRaycast
+} from './props.js';
 import {
   createCRTTexture,
   createSootGlassTexture,
@@ -22,27 +37,134 @@ import { sound } from '../audio.js';
 import { openDocument, openEndingScreen, renderInventory, whisper } from '../ui.js';
 
 export function buildControlRoom(actions) {
-  const { group, dust } = buildRoomShell({ width: 7.6, height: 4.2, depth: 7.2, wallTint: 0x636c75 });
+  const { group, dust } = buildRoomShell({
+    width: 7.6,
+    height: 4.2,
+    depth: 7.2,
+    theme: 'prussian',
+    wallTint: 0xd8d2c6,
+    backCutouts: [[-1.32, 1.32]]
+  });
 
-  const hemi = new THREE.HemisphereLight(0x3f5061, 0x12151a, 0.44);
+  // Grande tappeto persiano blu zaffiro e oro sotto lo scrittoio centrale di comando
+  const studyRug = createPersianRug({ width: 4.6, depth: 3.6, palette: 'sapphire' });
+  studyRug.position.set(0, 0, -0.85);
+  group.add(studyRug);
+
+  const hemi = new THREE.HemisphereLight(0x4b5c6e, 0x1c1510, 0.46);
   group.add(hemi);
 
-  const overheadLamp = createCageLamp({ color: 0xc98849, intensity: 5.6, distance: 10.5 });
-  overheadLamp.root.position.set(0, 3.66, -0.35);
+  const overheadLamp = createCageLamp({ color: 0xde9248, intensity: 6.0, distance: 11.2 });
+  overheadLamp.root.position.set(0, 3.62, -0.35);
   group.add(overheadLamp.root);
+
+  // --- ARREDI SCENOGRAFICI DEL GRANDE STUDIO BIBLIOTECA & OSSERVATORIO ---
+  // Tre grandi librerie monumentali in mogano colme di volumi rilegati, anfore e sfere d'ottone
+  // (il lato sinistro della parete di fondo resta libero in sporgenza affinché il portellone circolare scorra senza urti)
+  const backRightBookcase = createBookcase({ width: 1.52, height: 2.92, depth: 0.44, seed: 301 });
+  backRightBookcase.position.set(2.48, 0, -3.32);
+  group.add(backRightBookcase);
+
+  const leftStudyBookcase = createBookcase({ width: 1.48, height: 2.88, depth: 0.42, seed: 612 });
+  leftStudyBookcase.position.set(-3.52, 0, -0.05);
+  leftStudyBookcase.rotation.y = Math.PI / 2;
+  group.add(leftStudyBookcase);
+
+  const rightStudyBookcase = createBookcase({ width: 1.48, height: 2.88, depth: 0.42, seed: 845 });
+  rightStudyBookcase.position.set(3.52, 0, -0.32);
+  rightStudyBookcase.rotation.y = -Math.PI / 2;
+  group.add(rightStudyBookcase);
+
+  // Angolo lettura dello studio (avanti a sinistra, ben visibile nell'inquadratura)
+  const studyArmchair = createTuftedArmchair({ hex: '#1d3b31' });
+  studyArmchair.position.set(-2.45, 0, 0.78);
+  studyArmchair.rotation.y = 2.25;
+  group.add(studyArmchair);
+
+  const studySideTable = createSideTableWithLamp({ lampColor: 0xe89b4a, shadeTint: 0xd68336 });
+  studySideTable.position.set(-3.08, 0, 1.05);
+  group.add(studySideTable);
+
+  // Mappamondo antico su cavalletto in noce (avanti a destra, interamente inquadrato) + pianta ornamentale
+  const antiqueGlobe = createGlobeStand();
+  antiqueGlobe.position.set(2.38, 0, 0.65);
+  antiqueGlobe.rotation.y = -0.5;
+  group.add(antiqueGlobe);
+
+  // Luce morbida d'ambiente anteriore per valorizzare il fronte intagliato della console e i volumi delle librerie
+  const frontStudyFill = new THREE.PointLight(0xdca064, 1.45, 5.2, 1.75);
+  frontStudyFill.position.set(0, 1.35, 0.65);
+  group.add(frontStudyFill);
+
+  const studyPlant = createPottedPlant({ scale: 1.06 });
+  studyPlant.position.set(3.26, 0, -2.92);
+  group.add(studyPlant);
+
+  // Quadri astronomici e classici + applique calde in ottone
+  const leftBackPainting = createFramedPainting({ width: 1.18, height: 0.88, variant: 2, withLight: false });
+  leftBackPainting.position.set(-2.45, 2.05, -3.55);
+  group.add(leftBackPainting);
+
+  const crtTopPainting = createFramedPainting({ width: 1.05, height: 0.72, variant: 1, withLight: false });
+  crtTopPainting.position.set(-3.75, 2.66, -1.72);
+  crtTopPainting.rotation.y = Math.PI / 2;
+  group.add(crtTopPainting);
+
+  const doorTopPainting = createFramedPainting({ width: 0.96, height: 0.68, variant: 0, withLight: false });
+  doorTopPainting.position.set(3.75, 3.18, -1.85);
+  doorTopPainting.rotation.y = -Math.PI / 2;
+  group.add(doorTopPainting);
+
+  for (const sx of [-1.52, 1.48]) {
+    const sconce = createWallSconce({ color: 0xe89b4c, intensity: 1.6 });
+    sconce.position.set(sx, 2.58, -3.55);
+    group.add(sconce);
+  }
+
+  // Mobile credenza fisso sotto la postazione diagnostica CRT (parete sinistra)
+  const leftCredenza = new THREE.Group();
+  leftCredenza.position.set(-3.48, 0, -1.72);
+  const credWood = makeWoodMaterial('walnut', 0x947359, 0.42);
+  const credBrass = makeBrassMaterial(0xc89d54);
+  const credBody = new THREE.Mesh(new THREE.BoxGeometry(0.46, 1.12, 2.08), credWood);
+  credBody.position.y = 0.56;
+  credBody.castShadow = true;
+  credBody.receiveShadow = true;
+  leftCredenza.add(credBody);
+
+  const credTop = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 2.16), makeWoodMaterial('mahogany', 0x825d46, 0.38));
+  credTop.position.y = 1.14;
+  leftCredenza.add(credTop);
+
+  const leftCandelabra = createCandelabra();
+  leftCandelabra.position.set(0.02, 1.165, 0.85);
+  leftCredenza.add(leftCandelabra);
+
+  for (const dz of [-0.65, 0, 0.65]) {
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 10), credBrass);
+    knob.position.set(0.24, 0.68, dz);
+    leftCredenza.add(knob);
+  }
+  disableRaycast(leftCredenza);
+  group.add(leftCredenza);
 
   // --- 1. GRANDE CHIUSA CIRCOLARE DI SUPERFICIE ("SOGLIA 0") SUL FONDO ---
   const vaultAnchor = new THREE.Group();
   vaultAnchor.position.set(0, 1.95, -3.55);
 
-  // Cornice circolare fissa in acciaio
+  const outerBrassRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.44, 0.05, 14, 48),
+    makeBrassMaterial(0xc69b52)
+  );
+  outerBrassRing.raycast = () => {};
+  vaultAnchor.add(outerBrassRing);
+
   const ringCollar = new THREE.Mesh(
-    new THREE.TorusGeometry(1.36, 0.14, 16, 48),
-    makeRustMaterial(0x525a63, 0.62, 0.52)
+    new THREE.TorusGeometry(1.36, 0.13, 16, 48),
+    makeRustMaterial(0x475059, 0.48, 0.62)
   );
   vaultAnchor.add(ringCollar);
 
-  // Varco luminoso verso l'esterno (visibile quando il portellone scorre di lato)
   const portalMat = new THREE.MeshStandardMaterial({
     color: 0x080b0e,
     emissive: new THREE.Color(0x000000),
@@ -53,7 +175,6 @@ export function buildControlRoom(actions) {
   portalDisk.position.z = -0.01;
   vaultAnchor.add(portalDisk);
 
-  // Luce diurna fredda che irrompe nella stanza all'apertura
   const daylightSpot = new THREE.SpotLight(0xd8ecff, 0, 14, Math.PI / 3.4, 0.55, 1.2);
   daylightSpot.position.set(0, 0.1, -0.2);
   daylightSpot.target.position.set(0, -0.8, 3.2);
@@ -72,17 +193,23 @@ export function buildControlRoom(actions) {
     }
   });
 
-  // Portellone mobile corazzato (scorre a sinistra quando vaultOpen === true)
   const vaultDoor = new THREE.Group();
   vaultDoor.position.z = 0.12;
-  const heavySteel = makeRustMaterial(0x68727d, 0.52, 0.55);
+  const heavySteel = makeRustMaterial(0x5d6773, 0.44, 0.64);
+  const vaultBrass = makeBrassMaterial(0xcfa459);
 
   const doorPlate = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.16, 40), heavySteel);
   doorPlate.rotation.x = Math.PI / 2;
   doorPlate.castShadow = true;
   vaultDoor.add(doorPlate);
 
-  // 6 pistoni/chiavistelli radiali
+  // Anelli astrolabici concentrici in ottone cesellato sul portellone
+  for (const r of [0.64, 0.96]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.018, 10, 36), vaultBrass);
+    ring.position.z = 0.085;
+    vaultDoor.add(ring);
+  }
+
   const lugs = [];
   for (let i = 0; i < 6; i++) {
     const ang = (i * Math.PI) / 3;
@@ -90,7 +217,7 @@ export function buildControlRoom(actions) {
     lugPivot.rotation.z = ang;
     const lug = new THREE.Mesh(
       new THREE.BoxGeometry(0.13, 0.42, 0.08),
-      makeBrassMaterial(0x7c6542)
+      vaultBrass
     );
     lug.position.set(0, 1.08, 0.1);
     lugPivot.add(lug);
@@ -98,7 +225,7 @@ export function buildControlRoom(actions) {
     vaultDoor.add(lugPivot);
   }
 
-  const centerWheel = createHandwheel(0.38, 0.036, makeRustMaterial(0x6b3a26, 0.58, 0.72));
+  const centerWheel = createHandwheel(0.38, 0.036, vaultBrass);
   centerWheel.position.z = 0.16;
   vaultDoor.add(centerWheel);
 
@@ -114,20 +241,25 @@ export function buildControlRoom(actions) {
   vaultAnchor.add(vaultDoor);
   group.add(vaultAnchor);
 
-  // --- 2. PARETE SINISTRA: TERMINALE CRT + SPIA OTTICA ANNERITA (γ = 9) ---
+  // --- 2. PARETE SINISTRA: TERMINALE CRT IN NOCE/OTTONE + SPIA OTTICA ANNERITA (γ = 9) ---
   const leftStation = new THREE.Group();
   leftStation.position.set(-3.68, 1.62, -1.75);
   leftStation.rotation.y = Math.PI / 2;
 
-  // Terminale CRT ad ambra (a sinistra nella stazione -> local x = -0.62)
   const crtGroup = new THREE.Group();
   crtGroup.position.set(-0.62, 0.05, 0.14);
 
-  const crtBox = new THREE.Mesh(
-    new THREE.BoxGeometry(0.76, 0.62, 0.28),
-    makeRustMaterial(0x2a2d30, 0.72, 0.68)
+  const crtWoodCase = new THREE.Mesh(
+    new THREE.BoxGeometry(0.82, 0.68, 0.28),
+    makeWoodMaterial('mahogany', 0x8c6850, 0.4)
   );
-  crtGroup.add(crtBox);
+  crtGroup.add(crtWoodCase);
+
+  const crtBrassBezel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.54, 0.29),
+    credBrass
+  );
+  crtGroup.add(crtBrassBezel);
 
   const crtScreenMat = new THREE.MeshStandardMaterial({
     map: createCRTTexture(),
@@ -137,7 +269,7 @@ export function buildControlRoom(actions) {
     roughness: 0.25
   });
   const crtScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.48), crtScreenMat);
-  crtScreen.position.z = 0.145;
+  crtScreen.position.z = 0.15;
   crtGroup.add(crtScreen);
 
   const crtGlow = new THREE.PointLight(0xe58d35, 1.9, 3.2, 2);
@@ -166,13 +298,12 @@ export function buildControlRoom(actions) {
   });
   leftStation.add(crtGroup);
 
-  // Spia ottica coperta di fuliggine (a destra del CRT -> local x = +0.52)
   const sootGroup = new THREE.Group();
   sootGroup.position.set(0.52, -0.02, 0.08);
 
   const sootFrame = new THREE.Mesh(
-    new THREE.BoxGeometry(0.44, 0.44, 0.1),
-    makeRustMaterial(0x362b24, 0.72, 0.68)
+    new THREE.BoxGeometry(0.46, 0.46, 0.1),
+    credBrass
   );
   sootGroup.add(sootFrame);
 
@@ -191,7 +322,7 @@ export function buildControlRoom(actions) {
   sootGlass.position.z = 0.054;
   sootGroup.add(sootGlass);
 
-  const sootFill = new THREE.PointLight(0xd99248, 0.9, 1.8, 2);
+  const sootFill = new THREE.PointLight(0xd99248, 0.95, 1.8, 2);
   sootFill.position.set(0, 0.1, 0.48);
   sootGroup.add(sootFill);
 
@@ -229,44 +360,70 @@ export function buildControlRoom(actions) {
   leftStation.add(sootGroup);
   group.add(leftStation);
 
-  // --- 3. CONSOLE DI COMANDO PRINCIPALE (AL CENTRO) ---
+  // --- 3. LEGGIO / CONSOLE DI COMANDO PADRONALE IN NOCE, PELLE VERDE E OTTONE (AL CENTRO) ---
   const consoleGroup = new THREE.Group();
   consoleGroup.position.set(0, 0, -0.95);
-  const consoleSteel = makeRustMaterial(0x565f69, 0.58, 0.48);
+  const consoleWood = makeWoodMaterial('walnut', 0x99785e, 0.38);
+  const consoleMahogany = makeWoodMaterial('mahogany', 0x825e48, 0.4);
+  const leatherInlay = makeFabricMaterial('#1b382c', 0xffffff, 0.72);
 
-  const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.92, 0.68), consoleSteel);
-  pedestal.position.y = 0.46;
+  // Basamento scolpito a boiserie con zoccolo modanato e profili in ottone
+  const pedestalGroup = new THREE.Group();
+  const pedestalPlinth = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.78), consoleMahogany);
+  pedestalPlinth.position.y = 0.06;
+  pedestalGroup.add(pedestalPlinth);
+
+  const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.86, 0.68), consoleWood);
+  pedestal.position.y = 0.49;
   pedestal.castShadow = true;
   pedestal.receiveShadow = true;
-  consoleGroup.add(pedestal);
+  pedestalGroup.add(pedestal);
 
-  // Piano inclinato rivolto verso il giocatore
+  for (const px of [-0.42, 0.42]) {
+    const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.58, 0.03), consoleMahogany);
+    frontPanel.position.set(px, 0.5, 0.345);
+    pedestalGroup.add(frontPanel);
+  }
+  disableRaycast(pedestalGroup);
+  consoleGroup.add(pedestalGroup);
+
+  // Piano inclinato rivestito in pelle verde con cornice di noce e lampada da banchiere sul bordo superiore
   const slantRoot = new THREE.Group();
   slantRoot.position.set(0, 0.98, 0);
   slantRoot.rotation.x = 0.52;
 
-  const deskPlate = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.1, 0.78), consoleSteel);
+  const deskPlate = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.095, 0.82), consoleWood);
   deskPlate.castShadow = true;
+  deskPlate.raycast = () => {};
   slantRoot.add(deskPlate);
 
-  // Luce calda focalizzata sul piano della console
-  const consoleLamp = new THREE.PointLight(0xeba65c, 3.4, 3.8, 1.6);
-  consoleLamp.position.set(0.12, 0.85, 0.25);
+  const greenBlotter = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.015, 0.68), leatherInlay);
+  greenBlotter.position.y = 0.05;
+  greenBlotter.raycast = () => {};
+  slantRoot.add(greenBlotter);
+
+  const topBankerLamp = createBankersLamp();
+  topBankerLamp.scale.setScalar(0.82);
+  topBankerLamp.position.set(-0.58, 0.052, -0.28);
+  slantRoot.add(topBankerLamp);
+
+  const consoleLamp = new THREE.PointLight(0xeba65c, 3.5, 3.8, 1.6);
+  consoleLamp.position.set(0.08, 0.85, 0.25);
   slantRoot.add(consoleLamp);
 
   // 3A. Diario del Guardiano (lato sinistro della console)
   const journalGroup = new THREE.Group();
-  journalGroup.position.set(-0.56, 0.068, 0.02);
+  journalGroup.position.set(-0.56, 0.068, 0.08);
   journalGroup.rotation.y = 0.18;
 
   const jCover = new THREE.Mesh(
     new THREE.BoxGeometry(0.3, 0.025, 0.38),
-    new THREE.MeshStandardMaterial({ color: 0x291c16, roughness: 0.85 })
+    new THREE.MeshStandardMaterial({ color: 0x3d1c16, roughness: 0.78 })
   );
   journalGroup.add(jCover);
   const jPaper = new THREE.Mesh(
     new THREE.BoxGeometry(0.27, 0.032, 0.35),
-    new THREE.MeshStandardMaterial({ color: 0xc9bba1, roughness: 0.88 })
+    new THREE.MeshStandardMaterial({ color: 0xd1c2a7, roughness: 0.86 })
   );
   jPaper.position.y = 0.006;
   journalGroup.add(jPaper);
@@ -285,6 +442,7 @@ export function buildControlRoom(actions) {
             • Il Rombo ( ◇ ) precede sempre il Triangolo ( △ ), occupando una posizione più a sinistra.
           </div>
           <p><em>Nota a margine:</em> gli altri due frammenti si trovano nel <strong>Registro della Sala Valvole</strong> e all’interno della <strong>Cassetta d’Emergenza</strong> nell’Anticamera. La Chiave Maestra apre lo sportello dei rotori.</p>
+          <p>«Oltre questa soglia il sentiero scende a Capo Bruma. — <em>A. Vane, Nov. 1964</em>»</p>
         `
       });
     }
@@ -302,7 +460,7 @@ export function buildControlRoom(actions) {
 
     const ring = new THREE.Mesh(
       new THREE.CylinderGeometry(0.095, 0.098, 0.024, 24),
-      makeBrassMaterial(0x7c5f38)
+      makeBrassMaterial(0xc49850)
     );
     rHolder.add(ring);
 
@@ -315,8 +473,8 @@ export function buildControlRoom(actions) {
       map: symTex,
       emissive: new THREE.Color(0xc97b2c),
       emissiveMap: symTex,
-      emissiveIntensity: 0.55,
-      roughness: 0.32,
+      emissiveIntensity: 0.58,
+      roughness: 0.3,
       metalness: 0.45
     });
     const faceCap = new THREE.Mesh(new THREE.CircleGeometry(0.082, 28), faceMat);
@@ -345,16 +503,15 @@ export function buildControlRoom(actions) {
     });
 
     rotorMeshes.push({ group: bodyDisk, faceCap });
-
     slantRoot.add(rHolder);
   }
 
-  // Sportello corazzato scorrevole sopra i 3 rotori (chiuso finché consoleUnlocked === false)
+  // Sportello a serrandina in ottone e mogano sopra i 3 rotori
   const shutterMesh = new THREE.Mesh(
     new THREE.BoxGeometry(0.72, 0.042, 0.28),
-    makeRustMaterial(0x785c4e, 0.60, 0.48)
+    makeBrassMaterial(0xa87e42)
   );
-  shutterMesh.position.set(0.05, 0.078, -0.02);
+  shutterMesh.position.set(0.05, 0.08, -0.02);
 
   tagInteractive(shutterMesh, {
     id: 'rotor_shutter',
@@ -362,7 +519,7 @@ export function buildControlRoom(actions) {
     isEnabled: () => state.closeupId === 'console' && !state.consoleUnlocked,
     onClick: () => {
       sound.playDialTick(0.6);
-      whisper('Uno sportello d’acciaio copre i tre rotori. Inserisci la Chiave Maestra nella serratura a destra.');
+      whisper('Uno sportello d’ottone copre i tre rotori. Inserisci la Chiave Maestra nella serratura a destra.');
     }
   });
   slantRoot.add(shutterMesh);
@@ -373,7 +530,7 @@ export function buildControlRoom(actions) {
 
   const lockCylinder = new THREE.Mesh(
     new THREE.CylinderGeometry(0.052, 0.058, 0.032, 18),
-    makeBrassMaterial(0xa88246)
+    makeBrassMaterial(0xc89b52)
   );
   lockGroup.add(lockCylinder);
 
@@ -387,7 +544,7 @@ export function buildControlRoom(actions) {
   const insertedKey = new THREE.Group();
   insertedKey.position.y = 0.05;
   insertedKey.visible = false;
-  const kBrass = makeBrassMaterial(0xd4a453);
+  const kBrass = makeBrassMaterial(0xdfb05c);
   const kStem = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.09, 8), kBrass);
   insertedKey.add(kStem);
   const kBow = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.009, 8, 18), kBrass);
@@ -395,7 +552,6 @@ export function buildControlRoom(actions) {
   insertedKey.add(kBow);
   lockGroup.add(insertedKey);
 
-  // Hitbox comoda per la serratura
   const lockHitbox = new THREE.Mesh(
     new THREE.BoxGeometry(0.18, 0.14, 0.18),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
@@ -431,18 +587,18 @@ export function buildControlRoom(actions) {
 
   const lHousing = new THREE.Mesh(
     new THREE.BoxGeometry(0.14, 0.04, 0.22),
-    makeRustMaterial(0x23262a, 0.7, 0.75)
+    makeBrassMaterial(0x7c5f36)
   );
   leverBase.add(lHousing);
 
   const leverPivot = new THREE.Group();
   leverPivot.rotation.x = -0.52;
-  const lRod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.18, 10), makeBrassMaterial(0x9e7d47));
+  const lRod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.18, 10), makeBrassMaterial(0xc89d54));
   lRod.position.y = 0.09;
   leverPivot.add(lRod);
   const lGrip = new THREE.Mesh(
     new THREE.CylinderGeometry(0.026, 0.026, 0.11, 12),
-    new THREE.MeshStandardMaterial({ color: 0x6e241b, roughness: 0.45, metalness: 0.3 })
+    makeWoodMaterial('mahogany', 0x7c2d22, 0.35)
   );
   lGrip.rotation.z = Math.PI / 2;
   lGrip.position.y = 0.18;
@@ -491,7 +647,6 @@ export function buildControlRoom(actions) {
 
   consoleGroup.add(slantRoot);
 
-  // Proxy zoom sulla console dalla visuale stanza
   const consoleZoomProxy = new THREE.Mesh(
     new THREE.BoxGeometry(1.68, 1.25, 0.92),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
@@ -509,24 +664,31 @@ export function buildControlRoom(actions) {
   consoleGroup.add(consoleZoomProxy);
   group.add(consoleGroup);
 
-  // --- 4. PORTA STAGNA DI RITORNO -> ANTICAMERA (PARETE DESTRA) ---
+  // --- 4. PORTA BLINDATA IN MOGANO DI RITORNO -> ANTICAMERA (PARETE DESTRA) ---
   const exitBulkhead = new THREE.Group();
   exitBulkhead.position.set(3.68, 0, -1.85);
   exitBulkhead.rotation.y = -Math.PI / 2;
 
-  const ebFrame = new THREE.Mesh(
-    new THREE.BoxGeometry(1.56, 2.68, 0.14),
-    makeRustMaterial(0x4d535c, 0.66, 0.48)
-  );
-  ebFrame.position.y = 1.34;
+  const doorWood = makeWoodMaterial('walnut', 0x8f6f56, 0.42);
+  const doorPanel = makeWoodMaterial('mahogany', 0x9c765d, 0.38);
+
+  const ebFrame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.7, 0.15), doorWood);
+  ebFrame.position.y = 1.35;
   exitBulkhead.add(ebFrame);
 
-  const ebDoor = new THREE.Mesh(
-    new THREE.BoxGeometry(1.28, 2.44, 0.1),
-    makeRustMaterial(0x6b7480, 0.54, 0.52)
-  );
+  const ebDoor = new THREE.Mesh(new THREE.BoxGeometry(1.28, 2.44, 0.1), doorPanel);
   ebDoor.position.set(0, 1.26, 0.05);
   exitBulkhead.add(ebDoor);
+
+  for (const py of [0.66, 1.88]) {
+    const molding = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.78, 0.028), doorWood);
+    molding.position.set(0, py, 0.105);
+    exitBulkhead.add(molding);
+  }
+
+  const ebHandle = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 10), credBrass);
+  ebHandle.position.set(-0.46, 1.18, 0.14);
+  exitBulkhead.add(ebHandle);
 
   const ebLight = new THREE.Mesh(
     new THREE.SphereGeometry(0.065, 12, 10),
@@ -587,7 +749,6 @@ export function buildControlRoom(actions) {
     crtScreen.userData.baseEmissiveIntensity = 0.88 + Math.sin(elapsed * 28) * 0.03;
     crtScreen.material.emissiveIntensity = crtScreen.userData.baseEmissiveIntensity;
 
-    // Sportello rotori e chiave
     const targetKeyRot = state.consoleUnlocked ? Math.PI / 2 : 0;
     insertedKey.rotation.y += (targetKeyRot - insertedKey.rotation.y) * Math.min(1, dt * 8);
 
@@ -608,7 +769,6 @@ export function buildControlRoom(actions) {
     const targetLeverRot = state.vaultOpen ? 0.58 : -0.52 + Math.sin(leverBounce * Math.PI) * 0.45;
     leverPivot.rotation.x += (targetLeverRot - leverPivot.rotation.x) * Math.min(1, dt * 10);
 
-    // Sequenza cinematografica apertura Chiusa Circolare
     const desiredVault = state.vaultOpen ? 1 : 0;
     vaultProgress += (desiredVault - vaultProgress) * Math.min(1, dt * 0.95);
 

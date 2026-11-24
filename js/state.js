@@ -1,4 +1,40 @@
+export const LEVELS = {
+  1: {
+    id: 1,
+    roman: 'I',
+    code: 'ARCHIVIO VANE // CAPITOLO I',
+    title: 'SOGLIA IV',
+    subtitle: 'La Dimora Cittadina · Clicca per ispezionare',
+    startRoom: 'vestibule',
+    introWhisper: 'Aria ferma e legno antico. L’ingegnere Vane ha sigillato lo studio prima di svanire.',
+    epilogue: {
+      meta: 'SOGLIA 0 // PASSAGGIO ESTERNO',
+      title: 'LA DIMORA È ALLE SPALLE',
+      copy: 'I pistoni idraulici cedono dopo decenni di silenzio. Oltre la chiusa dello studio non c’è la strada di città, ma un sentiero scavato nella falesia che scende verso il mare aperto e la vecchia vedetta di Capo Bruma.',
+      nextLevel: 2,
+      nextLabel: 'Prosegui → Capitolo II · Capo Bruma'
+    }
+  },
+  2: {
+    id: 2,
+    roman: 'II',
+    code: 'CAPO BRUMA // CAPITOLO II',
+    title: 'SOGLIA III',
+    subtitle: 'L’Osservatorio Costiero · Clicca per ispezionare',
+    startRoom: 'greenhouse',
+    introWhisper: 'Vento salmastro contro i vetri della serra. Qui Vane trascorse le ultime notti del ’64.',
+    epilogue: {
+      meta: 'MOLO DI CAPO BRUMA // MARE APERTO',
+      title: 'IL SEGNALE SUL LARGO',
+      copy: 'Il fascio dorato della lente di Fresnel fende la foschia sull’acqua nera. Giù alla banchina di pietra la paratia del molo è finalmente aperta: al largo, dove le carte di Vane segnavano il punto di raccolta, una lanterna risponde dal mare.',
+      nextLevel: null,
+      nextLabel: null
+    }
+  }
+};
+
 export const ITEMS = {
+  // --- Oggetti Capitolo I ---
   prybar: {
     id: 'prybar',
     name: 'Leva d’acciaio',
@@ -24,27 +60,70 @@ export const ITEMS = {
       <circle cx="7.5" cy="12" r="3.5" />
       <path d="M11 12h10M18 12v3.5M21 12v2.5" />
     </svg>`
+  },
+
+  // --- Oggetti Capitolo II ---
+  shears: {
+    id: 'shears',
+    name: 'Cesoie da potatura',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6" cy="18" r="2.6" />
+      <circle cx="18" cy="18" r="2.6" />
+      <path d="M8.2 16.2L19 4M15.8 16.2L5 4" />
+    </svg>`
+  },
+  developer_bottle: {
+    id: 'developer_bottle',
+    name: 'Rivelatore argentico',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 3h6M10 3v4l-3 3.5V19a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-8.5L14 7V3" />
+      <path d="M7 14h10" />
+    </svg>`
+  },
+  tower_key: {
+    id: 'tower_key',
+    name: 'Chiave della Lanterna',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" />
+      <path d="M10.5 12H21M17.5 12v-3M20.5 12v-2.5" />
+    </svg>`
+  },
+  fresnel_prism: {
+    id: 'fresnel_prism',
+    name: 'Prisma di Fresnel',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="12,3 21,19 3,19" />
+      <path d="M12 3l3 16M12 3L9 19" opacity="0.65" />
+    </svg>`
   }
 };
 
-export const VALVE_DELTAS = [6, 4, -3, 2]; // Condotte I, II, III, IV -> I+II+III = 6+4-3 = 7 BAR
+// Costanti Enigmi Capitolo I
+export const VALVE_DELTAS = [6, 4, -3, 2]; // I+II+III = 6+4-3 = 7 BAR
 export const TARGET_PRESSURE = 7;
 export const SAFE_TARGET = [4, 7, 9]; // [alpha, beta, gamma]
 export const ROTOR_SYMBOLS = ['✛', '◯', '△', '◇'];
 export const TARGET_ROTORS = [3, 2, 1]; // ['◇', '△', '◯']
 
-export function createInitialState() {
+// Costanti Enigmi Capitolo II
+export const CABINET_TARGET = [5, 2, 8]; // [LAS, MAR, OND]
+export const COMPASS_DIRS = ['N', 'E', 'S', 'O'];
+export const TARGET_COMPASS = [3, 2, 1]; // ['O', 'S', 'E']
+
+export function createInitialState(level = 1) {
+  const lvl = LEVELS[level] ? level : 1;
   return {
-    currentRoom: 'vestibule',
+    currentLevel: lvl,
+    currentRoom: LEVELS[lvl].startRoom,
     closeupId: null,
     startedAt: performance.now(),
     interactions: 0,
 
-    // Inventario
-    inventory: [],     // IDs posseduti attualmente
-    armedItem: null,   // ID selezionato per l'uso
+    // Inventario condiviso col capitolo attivo
+    inventory: [],
+    armedItem: null,
 
-    // Stanza 1: Anticamera Sommersa
+    // --- CAPITOLO I: Dimora Vane ---
     hasPrybar: false,
     grateUnlocked: false,
     fuseboxOpen: false,
@@ -54,24 +133,42 @@ export function createInitialState() {
     safeOpen: false,
     hasMasterKey: false,
 
-    // Stanza 2: Sala delle Valvole
     valves: [false, false, false, false],
     basinDrained: false,
     hasFuse: false,
 
-    // Stanza 3: Camera di Controllo
     glassWiped: false,
     consoleUnlocked: false,
-    rotors: [0, 0, 1], // Iniziale: ['✛', '✛', '◯']
+    rotors: [0, 0, 1],
     vaultOpen: false,
-    escaped: false
+    escaped: false,
+
+    // --- CAPITOLO II: Capo Bruma ---
+    // Stanza 1: Serra d'Inverno
+    hasShears: false,
+    vinesCut: false,
+    hasDeveloper: false,
+    paneWiped: false,
+    cabinetDigits: [0, 0, 0],
+    cabinetOpen: false,
+    hasTowerKey: false,
+    towerUnlocked: false,
+
+    // Stanza 2: Camera Oscura
+    photoDeveloped: false,
+
+    // Stanza 3: Lanterna del Faro
+    hasPrism: false,
+    prismInserted: false,
+    compassRings: [0, 1, 2], // Iniziale: ['N', 'E', 'S']
+    beaconLit: false
   };
 }
 
-export const state = createInitialState();
+export const state = createInitialState(1);
 
-export function resetState() {
-  const fresh = createInitialState();
+export function resetState(level = state.currentLevel) {
+  const fresh = createInitialState(level);
   for (const key of Object.keys(fresh)) {
     state[key] = fresh[key];
   }

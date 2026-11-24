@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <title>SOGLIA IV</title>
+  <title>SOGLIA — L’Eredità Vane</title>
   <link rel="stylesheet" href="./style.css">
   <script type="importmap">
     {
@@ -29,15 +29,21 @@
     <span class="reticle-ring"></span>
   </div>
 
-  <!-- Titolo discreto iniziale che svanisce al primo clic -->
+  <!-- Titolo discreto di capitolo che svanisce al primo clic -->
   <div id="intro-watermark" class="intro-watermark" aria-hidden="true">
-    <span class="watermark-code">SETTORE SOTTERRANEO // 04</span>
-    <span class="watermark-title">SOGLIA IV</span>
-    <span class="watermark-sub">Clicca nella stanza per ispezionare</span>
+    <span id="watermark-code" class="watermark-code">ARCHIVIO VANE // CAPITOLO I</span>
+    <span id="watermark-title" class="watermark-title">SOGLIA IV</span>
+    <span id="watermark-sub" class="watermark-sub">La Dimora Cittadina · Clicca per ispezionare</span>
   </div>
 
-  <!-- Indicatore stanza ultra-discreto in alto a sinistra -->
-  <div id="room-tag" class="room-tag" aria-live="polite">I · ANTICAMERA SOMMERSA</div>
+  <!-- Barra ultra-discreta in alto a sinistra: selettore capitolo + stanza corrente -->
+  <div class="top-left-bar">
+    <nav class="chapter-nav" aria-label="Selezione capitolo">
+      <button type="button" class="chapter-pill is-active" data-level="1" title="Capitolo I · La Dimora Cittadina">CAP. I</button>
+      <button type="button" class="chapter-pill" data-level="2" title="Capitolo II · Capo Bruma">CAP. II</button>
+    </nav>
+    <div id="room-tag" class="room-tag" aria-live="polite">I · ANTICAMERA SOMMERSA</div>
+  </div>
 
   <!-- Controlli minimali in alto a destra: luminosità + audio -->
   <div class="top-controls">
@@ -89,17 +95,16 @@
     </article>
   </dialog>
 
-  <!-- Epilogo finale -->
+  <!-- Epilogo di fine capitolo / passaggio livello -->
   <dialog id="ending-dialog" class="doc-dialog ending-dialog" closedby="closerequest" aria-labelledby="ending-title">
     <article class="doc-sheet ending-sheet">
-      <span class="doc-meta">SOGLIA 0 // SUPERFICIE</span>
+      <span id="ending-meta" class="doc-meta">SOGLIA 0 // PASSAGGIO ESTERNO</span>
       <h1 id="ending-title" class="doc-title">VARCO APERTO</h1>
-      <p class="ending-copy">
-        I pistoni idraulici cedono dopo decenni di silenzio. L’aria fredda dell’esterno invade la camera di controllo, dissolvendo l’odore di ferro bagnato e olio bruciato.
-      </p>
+      <p id="ending-copy" class="ending-copy"></p>
       <p id="ending-stats" class="ending-stats"></p>
-      <footer class="doc-footer">
-        <button id="restart-btn" class="doc-close-btn" type="button" autofocus>Ricomincia dall’Anticamera</button>
+      <footer class="doc-footer ending-actions">
+        <button id="restart-btn" class="doc-close-btn is-subtle" type="button">Rigioca Capitolo</button>
+        <button id="next-level-btn" class="doc-close-btn is-primary" type="button" autofocus>Prosegui → Capitolo II</button>
       </footer>
     </article>
   </dialog>
